@@ -10,6 +10,8 @@ from source import config
 Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD')
 """Enumeration of roles"""
 
+##### THINGS TO NOTE AS READING THROUGH
+# address structure is net_id, node_id
 
 ###########################################################
 class SensorNode(wsn.Node):
@@ -39,6 +41,7 @@ class SensorNode(wsn.Node):
         self.ch_addr = None
         self.is_root_eligible = True
         self.example_counter = 0
+        self.neighborhood = []
 
     ###################
     def run(self):
@@ -50,10 +53,18 @@ class SensorNode(wsn.Node):
 
         """
         self.set_timer('TIMER_ARRIVAL', self.arrival)
+        self.set_timer('PING_TIMER', 30)
 
     ###################
     def on_receive(self, pck):
-        self.log(f'HEARD {pck['msg']}')
+        msg_parts = pck['msg'].split()   # ["PING", "7"]
+        msg_type = msg_parts[0]          # "PING"
+        sender_id = int(msg_parts[1])    # 7
+
+        self.log(f"HEARD {msg_type} from {sender_id}")
+
+        if msg_type == "HELLO":
+            self.neighborhood.append(sender_id) 
 
 
     ###################
@@ -61,14 +72,18 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLO')
-            package = {'dest': wsn.BROADCAST_ADDR, 'msg': 5}
+            package = {'dest': wsn.BROADCAST_ADDR, 'msg': f'HELLO {self.id}'}
             self.send(package)
+        if name == 'PING_TIMER':
+            for neighbor in self.neighborhood: #the neighbor we append right now is only the id number, not the node itself
+                package = {'dest': neighbor.id, 'msg': f'PING {self.id}'}
+                self.send(package)
 
 
 
 
 ROOT_ID = random.randint(0, config.SIM_NODE_COUNT)
-
+print(f"ROOT ID: {ROOT_ID}")
 
 ###########################################################
 def create_network(node_class, number_of_nodes=100):

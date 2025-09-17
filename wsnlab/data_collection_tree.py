@@ -85,7 +85,7 @@ class SensorNode(wsn.Node):
         self.set_timer('TIMER_JOIN_REQUEST', 20)
 
     ###################
-    def update_neighbor(self, pck):
+    def update_neighbor(self, pck): 
         pck['arrival_time'] = self.now
         self.neighbors_table[pck['gui']] = pck
         if pck['gui'] not in self.child_networks_table.keys() or pck['gui'] not in self.members_table:

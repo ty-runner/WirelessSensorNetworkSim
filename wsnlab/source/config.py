@@ -11,7 +11,7 @@ NODE_ARRIVAL_MAX = 200  # max time to wake up
 
 
 ## simulation properties
-SIM_NODE_COUNT = 50  # noce count in simulation
+SIM_NODE_COUNT = 50  # node count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 50  # cell size to place one node
 SIM_DURATION = 5000  # simulation Duration in seconds
 SIM_TIME_SCALE = 0.00001  #  The real time dureation of 1 second simualtion time
