@@ -53,7 +53,7 @@ class SensorNode(wsn.Node):
 
     ###################
     def on_receive(self, pck):
-        self.log(f'HEARD {pck['msg']}')
+        self.log(pck['example_variable'] * self.id)
 
 
     ###################
@@ -61,8 +61,11 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLO')
-            package = {'dest': wsn.BROADCAST_ADDR, 'msg': 5}
+            package = {'dest': wsn.BROADCAST_ADDR, 'example_variable': 5}
             self.send(package)
+
+
+
 
 
 
