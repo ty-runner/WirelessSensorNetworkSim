@@ -224,9 +224,10 @@ class Node:
         """
         for (dist, node) in self.neighbor_distance_list:
             if dist <= self.tx_range:
-                if node.can_receive(pck):
-                    prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
-                    self.delayed_exec(prop_time, node.on_receive_check, pck)
+                if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
+                    if node.can_receive(pck):
+                        prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
+                        self.delayed_exec(prop_time, node.on_receive_check, pck)
             else:
                 break
 
