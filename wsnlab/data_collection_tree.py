@@ -51,8 +51,8 @@ class SensorNode(wsn.Node):
         self.scene.nodecolor(self.id, 1, 1, 1) # sets self color to white
         self.sleep()
         self.addr = None
-        self.ch_addr = None
-        self.parent_gui = None
+        self.ch_addr = None #clusterhead address
+        self.parent_gui = None 
         self.root_addr = None
         self.set_role(Roles.UNDISCOVERED)
         self.is_root_eligible = True if self.id == ROOT_ID else False
@@ -233,8 +233,30 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+
+        """
+        Logic we want:
+        1. Direct delivery: 
+            if destID in neighbor table or members table -> next_hop = dest_id
+        2. Known Child Cluster:
+            if the parent of destID exists in the child next table -> next_hop = destID.parent
+        3. Else
+            next_hop = self.parent
+        """
+        #direct delivery:
+        #if pck['dest'] == 
+        #print(pck['dest'])
+
+        #Send up as an else case
         if self.role != Roles.ROOT:
             pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
+        #1. Direct Delivery: if in immediate vicinity, route to dest
+        if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
+            #print("FOUND")
+            #print(pck['dest'].node_addr)
+            #print(self.neighbors_table)
+            pck['next_hop'] = pck['dest']
+        #2. 
         if self.ch_addr is not None:
             if pck['dest'].net_addr == self.ch_addr.net_addr:
                 pck['next_hop'] = pck['dest']
@@ -243,7 +265,7 @@ class SensorNode(wsn.Node):
                     if pck['dest'].net_addr in child_networks:
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
                         break
-
+        
         self.send(pck)
 
     ###################
