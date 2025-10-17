@@ -6,8 +6,39 @@ sys.path.insert(1, '.')
 from source import wsnlab_vis as wsn
 import math
 from source import config
+from collections import Counter
+import csv  # <— add this near your other imports
 
+# Track where each node is placed
+NODE_POS = {}  # {node_id: (x, y)}
+
+# --- tracking containers ---
+ALL_NODES = []              # node objects
+CLUSTER_HEADS = []
+ROLE_COUNTS = Counter()     # live tally per Roles enum
 Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER GATEWAY')
+MESSAGE_TYPES = {
+    ### DISCOVERY MSGS
+    'PROBE': 'PROBE',
+    'HEARTBEAT': 'HEARTBEAT',
+
+    ### CLUSTER MEMBERSHIP MSGS
+    'JOIN_REQUEST': 'JOIN_REQUEST',
+    'JOIN_ACK': 'JOIN_ACK',
+    'LEAVE': 'LEAVE',
+    'ADDRESS_RENEW': 'ADDRESS_RENEW',
+
+    ### CLUSTER CREATION MSGS
+    'NETID_REQUEST': 'NETID_REQUEST',
+    'NETID_RESPONSE': 'NETID_RESPONSE',
+    
+    ### ROUTING MSGS
+    'TABLE_SHARE': 'TABLE_SHARE',
+    'ROUTE_ERROR': 'ROUTE_ERROR',
+
+
+
+}
 """Enumeration of roles"""
 
 
@@ -62,10 +93,34 @@ class SensorNode(wsn.Node):
 
         """
         self.set_timer('TIMER_ARRIVAL', self.arrival)
+    def set_role(self, new_role, *, recolor=True):
+        """Central place to switch roles, keep tallies, and (optionally) recolor."""
+        old_role = getattr(self, "role", None)
+        if old_role is not None:
+            ROLE_COUNTS[old_role] -= 1
+            if ROLE_COUNTS[old_role] <= 0:
+                ROLE_COUNTS.pop(old_role, None)
+        ROLE_COUNTS[new_role] += 1
+        self.role = new_role
 
+        if recolor:
+            if new_role == Roles.UNDISCOVERED:
+                self.scene.nodecolor(self.id, 150, 150, 150)
+            elif new_role == Roles.UNREGISTERED:
+                self.scene.nodecolor(self.id, 1, 1, 0)
+            elif new_role == Roles.REGISTERED:
+                self.scene.nodecolor(self.id, 0, 1, 0)
+            elif new_role == Roles.CLUSTER_HEAD:
+                self.scene.nodecolor(self.id, 0, 0, 1)
+                self.draw_tx_range()
+            elif new_role == Roles.ROOT:
+                self.scene.nodecolor(self.id, 0, 0, 0)
+                self.set_timer('TIMER_EXPORT_CH_CSV', config.EXPORT_CH_CSV_INTERVAL)
+                self.set_timer('TIMER_EXPORT_NEIGHBOR_CSV', config.EXPORT_NEIGHBOR_CSV_INTERVAL)
     ###################
     def on_receive(self, pck):
-        self.log(pck['example_variable'] * self.id)
+        if pck['msg_type'] == MESSAGE_TYPES['PROBE']:
+            self.log(pck['unique_id'])
 
 
     ###################
@@ -73,7 +128,7 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLO')
-            package = {'dest': wsn.BROADCAST_ADDR, 'example_variable': 5} #on arrival / turn on, include UID 
+            package = {'dest': wsn.BROADCAST_ADDR, 'msg_type': MESSAGE_TYPES['PROBE'],'unique_id': self.id} #on arrival / turn on, include UID 
             self.send(package)
 
 
