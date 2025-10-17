@@ -36,8 +36,14 @@ MESSAGE_TYPES = {
     'TABLE_SHARE': 'TABLE_SHARE',
     'ROUTE_ERROR': 'ROUTE_ERROR',
 
+    ### RELIABILITY
+    'ACK': 'ACK',
+    'DATA': 'DATA',
 
+    #TODO skipping fragmentation feature for now
 
+    ### Maintainance
+    'KEEP_ALIVE': 'KEEP_ALIVE'
 }
 """Enumeration of roles"""
 
