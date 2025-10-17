@@ -7,7 +7,7 @@ from source import wsnlab_vis as wsn
 import math
 from source import config
 
-Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD')
+Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER GATEWAY')
 """Enumeration of roles"""
 
 
@@ -34,10 +34,22 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.scene.nodecolor(self.id, 1, 1, 1) # sets self color to white
         self.sleep()
         self.addr = None
         self.ch_addr = None
-        self.is_root_eligible = True
+        self.parent_gui = None
+        self.root_addr = None
+        self.set_role(Roles.UNDISCOVERED)
+        self.is_root_eligible = True if self.id == ROOT_ID else False
+        self.c_probe = 0  # c means counter and probe is the name of counter
+        self.th_probe = 10  # th means threshold and probe is the name of threshold
+        self.hop_count = 99999
+        self.neighbors_table = {}  # keeps neighbor information with received HB messages
+        self.candidate_parents_table = []
+        self.child_networks_table = {}
+        self.members_table = []
+        self.received_JR_guis = []  # keeps received Join Request global unique ids
         self.example_counter = 0
 
     ###################
@@ -61,7 +73,7 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLO')
-            package = {'dest': wsn.BROADCAST_ADDR, 'example_variable': 5}
+            package = {'dest': wsn.BROADCAST_ADDR, 'example_variable': 5} #on arrival / turn on, include UID 
             self.send(package)
 
 
