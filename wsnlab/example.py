@@ -123,6 +123,14 @@ class SensorNode(wsn.Node):
                 self.scene.nodecolor(self.id, 0, 0, 0)
                 self.set_timer('TIMER_EXPORT_CH_CSV', config.EXPORT_CH_CSV_INTERVAL)
                 self.set_timer('TIMER_EXPORT_NEIGHBOR_CSV', config.EXPORT_NEIGHBOR_CSV_INTERVAL)
+
+    ###################
+    # CREATING DEFAULT PACKET STRUCTURE FOR INITIAL APPENDING
+    # msg_type | dest_addr | next_hop | source_addr | TTL (hop count) | PAYLOAD 
+    def create_pck(self, msg_type, dest, next_hop=None, source_addr=None, hop_count=None):
+        packet = {'msg_type': msg_type, 'dest': dest, 'next_hop': next_hop, 'source_addr': source_addr, 'hop_count': hop_count}
+        return packet
+     
     ###################
     def on_receive(self, pck):
         if pck['msg_type'] == MESSAGE_TYPES['PROBE']:
@@ -134,7 +142,9 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLO')
-            package = {'dest': wsn.BROADCAST_ADDR, 'msg_type': MESSAGE_TYPES['PROBE'],'unique_id': self.id} #on arrival / turn on, include UID 
+            package = self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, source_addr=self.id)
+            #package = {'dest': wsn.BROADCAST_ADDR, 'msg_type': MESSAGE_TYPES['PROBE'],'unique_id': self.id} #on arrival / turn on, include UID 
+            package['unique_id'] = self.id
             self.send(package)
 
 

@@ -198,7 +198,7 @@ class Node:
            Returns:
                bool: returns True if the given package is proper to receive .
         """
-        dest = pck['next_hop'] if 'next_hop' in pck.keys() else pck['dest']
+        dest = pck['next_hop'] if 'next_hop' in pck.keys() and pck['next_hop'] != None else pck['dest']
         if dest.is_equal(BROADCAST_ADDR):  # if destination address is broadcast address
             return True
         if self.addr is not None:  # if node's address is assigned
