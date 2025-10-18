@@ -82,14 +82,36 @@ class SensorNode(wsn.Node):
         self.c_probe = 0  # c means counter and probe is the name of counter
         self.th_probe = 10  # th means threshold and probe is the name of threshold
         self.hop_count = 99999
-        self.neighbors_table = []#{}  # keeps neighbor information with received HB messages
+        self.neighbors_table = {}  # keeps neighbor information with received HB messages
         self.candidate_parents_table = []
         self.child_networks_table = {}
         self.members_table = []
-        self.received_JR_uids = []  # keeps received Join Request global unique ids
+        self.received_JR_guis = []  # keeps received Join Request global unique ids
         self.example_counter = 0
 
+    def become_unregistered(self):
+        if self.role != Roles.UNDISCOVERED:
+            self.kill_all_timers()
+            self.log('I became UNREGISTERED')
+        self.scene.nodecolor(self.id, 1, 1, 0)
+        self.erase_parent()
+        self.addr = None
+        self.ch_addr = None
+        self.parent_gui = None
+        self.root_addr = None
+        self.set_role(Roles.UNREGISTERED)
+        self.c_probe = 0
+        self.th_probe = 10
+        self.hop_count = 99999
+        self.neighbors_table = {}
+        self.candidate_parents_table = []
+        self.child_networks_table = {}
+        self.members_table = []
+        self.received_JR_guis = []  # keeps received Join Request global unique ids
+        self.send_probe()
+        self.set_timer('TIMER_JOIN_REQUEST', 20)
     ###################
+
     def run(self):
         """Setting the arrival timer to wake up after firing.
 
@@ -130,18 +152,6 @@ class SensorNode(wsn.Node):
     def create_pck(self, msg_type, dest, next_hop=None, source_addr=None, hop_count=None, unique_id=None):
         packet = {'msg_type': msg_type, 'dest': dest, 'next_hop': next_hop, 'source_addr': source_addr, 'hop_count': hop_count, 'unique_id': unique_id}
         return packet
-     
-    ###################
-    def on_receive(self, pck):
-        if pck['msg_type'] == MESSAGE_TYPES['PROBE']:
-            unique_id = pck['unique_id']
-            #if we havent heard from this node before, add to neighbor table
-            if unique_id not in self.neighbors_table:
-                self.neighbors_table.append(unique_id)
-            self.log(unique_id)
-            self.send_heartbeat()
-            self.log(self.neighbors_table)
-
     def send_probe(self): #probe to discover network
         self.send(self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, unique_id=self.id))
     def send_heartbeat(self): #periodic message and response to probes
@@ -153,12 +163,37 @@ class SensorNode(wsn.Node):
             'addr': self.addr,
             'ch_addr': self.ch_addr,
             'hop_count': self.hop_count})
+    def send_join_request(self): #periodic message and response to probes
+        self.send({'dest': wsn.BROADCAST_ADDR,
+            'msg_type': MESSAGE_TYPES['HEARTBEAT'],
+            'source_addr': self.ch_addr if self.ch_addr is not None else self.addr,
+            'unique_id': self.id,
+            'role_type': self.role,
+            'addr': self.addr,
+            'ch_addr': self.ch_addr,
+            'hop_count': self.hop_count})
+    ###################
+    def on_receive(self, pck):
+        if pck['msg_type'] == MESSAGE_TYPES['PROBE']: #so this should only be logic for nodes that can add them to the network
+            unique_id = pck['unique_id']
+            #if we havent heard from this node before, add to neighbor table
+            if unique_id not in self.neighbors_table.keys():
+                self.neighbors_table[unique_id] = pck
+            self.log(unique_id)
+            self.send_heartbeat()
+            self.log(self.neighbors_table)
+        if self.role == Roles.UNDISCOVERED:
+            if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
+                #self.update_neighbor(pck)
+                self.become_unregistered()
+
+
+
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLONODES')
-            self.set_role(Roles.UNREGISTERED)
             self.set_timer('TIMER_PROBE', 1)
         elif name == 'TIMER_PROBE':
             if self.c_probe < self.th_probe:
