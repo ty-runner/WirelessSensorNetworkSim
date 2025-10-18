@@ -113,7 +113,7 @@ class SensorNode(wsn.Node):
             if new_role == Roles.UNDISCOVERED:
                 self.scene.nodecolor(self.id, 150, 150, 150)
             elif new_role == Roles.UNREGISTERED:
-                self.scene.nodecolor(self.id, 1, 1, 0)
+                self.scene.nodecolor(self.id, 1, 0.5, 0)
             elif new_role == Roles.REGISTERED:
                 self.scene.nodecolor(self.id, 0, 1, 0)
             elif new_role == Roles.CLUSTER_HEAD:
@@ -139,19 +139,25 @@ class SensorNode(wsn.Node):
             if unique_id not in self.neighbors_table:
                 self.neighbors_table.append(unique_id)
             self.log(unique_id)
-            #ASSUMPTION any node responds to rpobe with heartbeat
-            packet = self.create_pck(msg_type=MESSAGE_TYPES['HEARTBEAT'], dest=wsn.BROADCAST_ADDR, source_addr=self.id)
-            packet['unique_id'] = self.id
-            packet['intended_uid'] = unique_id
-            self.send(packet)
+            self.send_heartbeat()
+            self.log(self.neighbors_table)
 
     def send_probe(self): #probe to discover network
         self.send(self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, unique_id=self.id))
+    def send_heartbeat(self): #periodic message and response to probes
+        self.send({'dest': wsn.BROADCAST_ADDR,
+            'msg_type': MESSAGE_TYPES['HEARTBEAT'],
+            'source_addr': self.ch_addr if self.ch_addr is not None else self.addr,
+            'unique_id': self.id,
+            'role_type': self.role,
+            'addr': self.addr,
+            'ch_addr': self.ch_addr,
+            'hop_count': self.hop_count})
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
-            self.log('HELLO')
+            self.log('HELLONODES')
             self.set_role(Roles.UNREGISTERED)
             self.set_timer('TIMER_PROBE', 1)
         elif name == 'TIMER_PROBE':
@@ -159,16 +165,21 @@ class SensorNode(wsn.Node):
                 self.send_probe()
                 self.c_probe += 1
                 self.set_timer('TIMER_PROBE', 1)
-            else:
+            else: #TODO investigate if it makes sense to also consider moving to clusterhead
                 if self.is_root_eligible:
                     #become root!
                     self.set_role(Roles.ROOT)
                     self.addr = wsn.Addr(self.id, 254)
                     self.ch_addr = wsn.Addr(self.id, 254)
+                    self.set_timer('TIMER_HEARTBEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:
                     #if we can't become root, try and try again!
                     self.c_probe = 0
                     self.set_timer('TIMER_PROBE', config.SLEEP_MODE_PROBE_TIME_INTERVAL)
+        elif name == 'TIMER_HEARTBEAT':
+            self.log("heartbeat sent")
+            self.send_heartbeat()
+            self.set_timer('TIMER_HEARTBEAT', config.HEART_BEAT_TIME_INTERVAL)
 
 
 
