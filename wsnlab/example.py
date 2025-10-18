@@ -82,11 +82,11 @@ class SensorNode(wsn.Node):
         self.c_probe = 0  # c means counter and probe is the name of counter
         self.th_probe = 10  # th means threshold and probe is the name of threshold
         self.hop_count = 99999
-        self.neighbors_table = {}  # keeps neighbor information with received HB messages
+        self.neighbors_table = []#{}  # keeps neighbor information with received HB messages
         self.candidate_parents_table = []
         self.child_networks_table = {}
         self.members_table = []
-        self.received_JR_guis = []  # keeps received Join Request global unique ids
+        self.received_JR_uids = []  # keeps received Join Request global unique ids
         self.example_counter = 0
 
     ###################
@@ -127,25 +127,50 @@ class SensorNode(wsn.Node):
     ###################
     # CREATING DEFAULT PACKET STRUCTURE FOR INITIAL APPENDING
     # msg_type | dest_addr | next_hop | source_addr | TTL (hop count) | PAYLOAD 
-    def create_pck(self, msg_type, dest, next_hop=None, source_addr=None, hop_count=None):
-        packet = {'msg_type': msg_type, 'dest': dest, 'next_hop': next_hop, 'source_addr': source_addr, 'hop_count': hop_count}
+    def create_pck(self, msg_type, dest, next_hop=None, source_addr=None, hop_count=None, unique_id=None):
+        packet = {'msg_type': msg_type, 'dest': dest, 'next_hop': next_hop, 'source_addr': source_addr, 'hop_count': hop_count, 'unique_id': unique_id}
         return packet
      
     ###################
     def on_receive(self, pck):
         if pck['msg_type'] == MESSAGE_TYPES['PROBE']:
-            self.log(pck['unique_id'])
+            unique_id = pck['unique_id']
+            #if we havent heard from this node before, add to neighbor table
+            if unique_id not in self.neighbors_table:
+                self.neighbors_table.append(unique_id)
+            self.log(unique_id)
+            #ASSUMPTION any node responds to rpobe with heartbeat
+            packet = self.create_pck(msg_type=MESSAGE_TYPES['HEARTBEAT'], dest=wsn.BROADCAST_ADDR, source_addr=self.id)
+            packet['unique_id'] = self.id
+            packet['intended_uid'] = unique_id
+            self.send(packet)
 
-
+    def send_probe(self): #probe to discover network
+        self.send(self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, unique_id=self.id))
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
             self.log('HELLO')
-            package = self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, source_addr=self.id)
-            #package = {'dest': wsn.BROADCAST_ADDR, 'msg_type': MESSAGE_TYPES['PROBE'],'unique_id': self.id} #on arrival / turn on, include UID 
-            package['unique_id'] = self.id
-            self.send(package)
+            self.set_role(Roles.UNREGISTERED)
+            self.set_timer('TIMER_PROBE', 1)
+        elif name == 'TIMER_PROBE':
+            if self.c_probe < self.th_probe:
+                self.send_probe()
+                self.c_probe += 1
+                self.set_timer('TIMER_PROBE', 1)
+            else:
+                if self.is_root_eligible:
+                    #become root!
+                    self.set_role(Roles.ROOT)
+                    self.addr = wsn.Addr(self.id, 254)
+                    self.ch_addr = wsn.Addr(self.id, 254)
+                else:
+                    #if we can't become root, try and try again!
+                    self.c_probe = 0
+                    self.set_timer('TIMER_PROBE', config.SLEEP_MODE_PROBE_TIME_INTERVAL)
+
+
 
 
 
