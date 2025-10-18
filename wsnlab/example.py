@@ -16,6 +16,7 @@ NODE_POS = {}  # {node_id: (x, y)}
 ALL_NODES = []              # node objects
 CLUSTER_HEADS = []
 ROLE_COUNTS = Counter()     # live tally per Roles enum
+MAX_NET_NODES = 253 #max number 
 Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER GATEWAY')
 MESSAGE_TYPES = {
     ### DISCOVERY MSGS
@@ -25,6 +26,7 @@ MESSAGE_TYPES = {
     ### CLUSTER MEMBERSHIP MSGS
     'JOIN_REQUEST': 'JOIN_REQUEST',
     'JOIN_ACK': 'JOIN_ACK',
+    'JOIN_REPLY': 'JOIN_REPLY',
     'LEAVE': 'LEAVE',
     'ADDRESS_RENEW': 'ADDRESS_RENEW',
 
@@ -99,6 +101,7 @@ class SensorNode(wsn.Node):
         self.ch_addr = None
         self.parent_gui = None
         self.root_addr = None
+        self.net_capacity = 0
         self.set_role(Roles.UNREGISTERED)
         self.c_probe = 0
         self.th_probe = 10
@@ -147,6 +150,29 @@ class SensorNode(wsn.Node):
                 self.set_timer('TIMER_EXPORT_NEIGHBOR_CSV', config.EXPORT_NEIGHBOR_CSV_INTERVAL)
 
     ###################
+    def update_neighbor(self, pck):
+        #if we havent heard from this node before, add to neighbor table
+        #if pck['role_type'] == Roles.CLUSTER_HEAD or pck['role_type'] == Roles.ROOT:
+        if pck['unique_id'] not in self.candidate_parents_table:
+            self.candidate_parents_table.append(pck['unique_id'])
+        if pck['unique_id'] not in self.neighbors_table.keys():
+            self.neighbors_table[pck['unique_id']] = pck
+
+    def select_and_join(self):
+        min_hop = 99999
+        min_hop_gui = 99999
+        self.log("PARENTS")
+        self.log(self.candidate_parents_table)
+        for gui in self.candidate_parents_table:
+            if self.neighbors_table[gui]['hop_count'] < min_hop or (self.neighbors_table[gui]['hop_count'] == min_hop and gui < min_hop_gui):
+                min_hop = self.neighbors_table[gui]['hop_count']
+                min_hop_gui = gui
+        self.log(self.neighbors_table[min_hop_gui])
+        selected_addr = self.neighbors_table[min_hop_gui]['source_addr']
+        self.log("send JR")
+        self.log(selected_addr)
+        self.send_join_request(selected_addr)
+        self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
     # CREATING DEFAULT PACKET STRUCTURE FOR INITIAL APPENDING
     # msg_type | dest_addr | next_hop | source_addr | TTL (hop count) | PAYLOAD 
     def create_pck(self, msg_type, dest, next_hop=None, source_addr=None, hop_count=None, unique_id=None):
@@ -154,6 +180,7 @@ class SensorNode(wsn.Node):
         return packet
     def send_probe(self): #probe to discover network
         self.send(self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, unique_id=self.id))
+    ###################
     def send_heartbeat(self): #periodic message and response to probes
         self.send({'dest': wsn.BROADCAST_ADDR,
             'msg_type': MESSAGE_TYPES['HEARTBEAT'],
@@ -163,29 +190,76 @@ class SensorNode(wsn.Node):
             'addr': self.addr,
             'ch_addr': self.ch_addr,
             'hop_count': self.hop_count})
-    def send_join_request(self): #periodic message and response to probes
-        self.send({'dest': wsn.BROADCAST_ADDR,
-            'msg_type': MESSAGE_TYPES['HEARTBEAT'],
+    ###################
+    def send_join_request(self, selected_parent_addr): #periodic message and response to probes
+        self.send({'dest': selected_parent_addr,
+            'msg_type': MESSAGE_TYPES['JOIN_REQUEST'],
             'source_addr': self.ch_addr if self.ch_addr is not None else self.addr,
             'unique_id': self.id,
-            'role_type': self.role,
-            'addr': self.addr,
-            'ch_addr': self.ch_addr,
             'hop_count': self.hop_count})
+    def send_join_reply(self, gui, addr):
+        """Sending join reply message to register the node requested to join.
+        The message includes a gui to determine which node will take this reply, an addr to be assigned to the node
+        and a root_addr.
+
+        Args:
+            gui (int): Global unique ID
+            addr (Addr): Address that will be assigned to new registered node
+        Returns:
+
+        """
+        self.send({'dest': wsn.BROADCAST_ADDR, 'msg_type': MESSAGE_TYPES['JOIN_REPLY'], 'source_addr': self.ch_addr,
+                   'unique_id': self.id, 'dest_gui': gui, 'addr': addr, 'root_addr': self.root_addr,
+                   'hop_count': self.hop_count+1})
+
+    ###################
+    def send_join_ack(self, dest):
+        """Sending join acknowledgement message to given destination address.
+
+        Args:
+            dest (Addr): Address of destination node
+        Returns:
+
+        """
+        self.send({'dest': dest, 'msg_type': MESSAGE_TYPES['JOIN_ACK'], 'source_addr': self.addr,
+                   'unique_id': self.id})
     ###################
     def on_receive(self, pck):
         if pck['msg_type'] == MESSAGE_TYPES['PROBE']: #so this should only be logic for nodes that can add them to the network
             unique_id = pck['unique_id']
-            #if we havent heard from this node before, add to neighbor table
-            if unique_id not in self.neighbors_table.keys():
-                self.neighbors_table[unique_id] = pck
             self.log(unique_id)
-            self.send_heartbeat()
+            #self.send_heartbeat()
             self.log(self.neighbors_table)
         if self.role == Roles.UNDISCOVERED:
             if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
-                #self.update_neighbor(pck)
                 self.become_unregistered()
+                self.update_neighbor(pck)
+        if self.role == Roles.UNREGISTERED:
+            if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
+                self.update_neighbor(pck)
+            if pck['msg_type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
+                if pck['dest_gui'] == self.id:
+                    self.addr = pck['addr']
+                    self.parent_gui = pck['unique_id']
+                    self.root_addr = pck['root_addr']
+                    self.hop_count = pck['hop_count']
+                    self.draw_parent()
+                    self.kill_timer('TIMER_JOIN_REQUEST')
+                    self.send_heartbeat()
+                    self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
+                    self.log('source addr')
+                    self.log(pck['source_addr'])
+                    self.send_join_ack(pck['source_addr'])
+                    if self.ch_addr is not None: # it could be a cluster head which lost its parent
+                        self.set_role(Roles.CLUSTER_HEAD)
+                        self.send_network_update()
+                    else:
+                        self.set_role(Roles.REGISTERED)
+        if self.role == Roles.ROOT or Roles.CLUSTER_HEAD:
+            if pck['msg_type'] == MESSAGE_TYPES['JOIN_REQUEST']:
+                if self.net_capacity > 0:
+                    #we can add them, send join req reply
+                    self.send_join_reply(pck['unique_id'], wsn.Addr(self.ch_addr.net_addr, MAX_NET_NODES - self.net_capacity))
 
 
 
@@ -204,6 +278,7 @@ class SensorNode(wsn.Node):
                 if self.is_root_eligible:
                     #become root!
                     self.set_role(Roles.ROOT)
+                    self.net_capacity = MAX_NET_NODES
                     self.addr = wsn.Addr(self.id, 254)
                     self.ch_addr = wsn.Addr(self.id, 254)
                     self.set_timer('TIMER_HEARTBEAT', config.HEART_BEAT_TIME_INTERVAL)
@@ -215,6 +290,12 @@ class SensorNode(wsn.Node):
             self.log("heartbeat sent")
             self.send_heartbeat()
             self.set_timer('TIMER_HEARTBEAT', config.HEART_BEAT_TIME_INTERVAL)
+        elif name == 'TIMER_JOIN_REQUEST':
+            self.log("sending join req")
+            if len(self.candidate_parents_table) != 0:
+                self.select_and_join()
+            else: 
+                self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
 
 
 
