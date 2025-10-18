@@ -22,7 +22,8 @@ SCALE = 1  # scale factor for visualization
 
 
 ## application properties
-HEARTH_BEAT_TIME_INTERVAL = 100
+SLEEP_MODE_PROBE_TIME_INTERVAL = 30
+HEART_BEAT_TIME_INTERVAL = 100
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
 EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
