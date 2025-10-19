@@ -255,11 +255,35 @@ class SensorNode(wsn.Node):
                         self.send_network_update()
                     else:
                         self.set_role(Roles.REGISTERED)
-        if self.role == Roles.ROOT or Roles.CLUSTER_HEAD:
-            if pck['msg_type'] == MESSAGE_TYPES['JOIN_REQUEST']:
+        if self.role == Roles.ROOT or self.role == Roles.CLUSTER_HEAD:  # if the node is root or cluster head
+            if ('next_hop' in pck and pck['next_hop'] is not None and pck['dest'] != self.addr and pck['dest'] != self.ch_addr):
+                self.route_and_forward_package(pck)
+                return
+            if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
+                self.update_neighbor(pck)
+            if pck['msg_type'] == 'PROBE':  # it waits and sends heart beat message once received probe message
+                # yield self.timeout(.5)
+                self.send_heartbeat()
+            if pck['msg_type'] == MESSAGE_TYPES['JOIN_REQUEST']:  # it waits and sends join reply message once received join request
                 if self.net_capacity > 0:
                     #we can add them, send join req reply
                     self.send_join_reply(pck['unique_id'], wsn.Addr(self.ch_addr.net_addr, MAX_NET_NODES - self.net_capacity))
+                    self.net_capacity -= 1
+            if pck['msg_type'] == MESSAGE_TYPES['NETID_REQUEST']:  # it sends a network reply to requested node
+                # yield self.timeout(.5)
+                if self.role == Roles.ROOT:
+                    new_addr = wsn.Addr(pck['source'].node_addr,254)
+                    self.send_network_reply(pck['source'],new_addr)
+            if pck['msg_type'] == MESSAGE_TYPES['JOIN_ACK']:
+                self.members_table.append(pck['unique_id'])
+                self.log("MEMBERS")
+                self.log(self.members_table)
+            if pck['msg_type'] == MESSAGE_TYPES['TABLE_SHARE']:
+                self.child_networks_table[pck['unique_id']] = pck['child_networks']
+                if self.role != Roles.ROOT:
+                    self.send_network_update()
+            if pck['msg_type'] == MESSAGE_TYPES['DATA']:
+                pass
 
 
 
@@ -281,6 +305,7 @@ class SensorNode(wsn.Node):
                     self.net_capacity = MAX_NET_NODES
                     self.addr = wsn.Addr(self.id, 254)
                     self.ch_addr = wsn.Addr(self.id, 254)
+                    self.hop_count = 0
                     self.set_timer('TIMER_HEARTBEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:
                     #if we can't become root, try and try again!
@@ -296,12 +321,6 @@ class SensorNode(wsn.Node):
                 self.select_and_join()
             else: 
                 self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
-
-
-
-
-
-
 
 
 
