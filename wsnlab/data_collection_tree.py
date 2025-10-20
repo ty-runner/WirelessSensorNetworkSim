@@ -387,7 +387,7 @@ class SensorNode(wsn.Node):
                     self.draw_parent()
                     self.kill_timer('TIMER_JOIN_REQUEST')
                     self.send_heart_beat()
-                    self.set_timer('TIMER_HEART_BEAT', config.HEARTH_BEAT_TIME_INTERVAL)
+                    self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                     self.send_join_ack(pck['source'])
                     if self.ch_addr is not None: # it could be a cluster head which lost its parent
                         self.set_role(Roles.CLUSTER_HEAD)
@@ -428,14 +428,14 @@ class SensorNode(wsn.Node):
                     self.ch_addr = wsn.Addr(self.id, 254)
                     self.root_addr = self.addr
                     self.hop_count = 0
-                    self.set_timer('TIMER_HEART_BEAT', config.HEARTH_BEAT_TIME_INTERVAL)
+                    self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time
                     self.c_probe = 0
                     self.set_timer('TIMER_PROBE', 30)
 
         elif name == 'TIMER_HEART_BEAT':  # it sends heart beat message once heart beat timer fired
             self.send_heart_beat()
-            self.set_timer('TIMER_HEART_BEAT', config.HEARTH_BEAT_TIME_INTERVAL)
+            self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
             #print(self.id)
 
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
