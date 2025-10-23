@@ -36,6 +36,7 @@ MESSAGE_TYPES = {
     
     ### ROUTING MSGS
     'TABLE_SHARE': 'TABLE_SHARE',
+    'NETWORK_UPDATE': 'NETWORK_UPDATE',
     'ROUTE_ERROR': 'ROUTE_ERROR',
 
     ### RELIABILITY
@@ -152,12 +153,17 @@ class SensorNode(wsn.Node):
 
     ###################
     def update_neighbor(self, pck):
-        #if we havent heard from this node before, add to neighbor table
-        #if pck['role_type'] == Roles.CLUSTER_HEAD or pck['role_type'] == Roles.ROOT:
-        if pck['unique_id'] not in self.candidate_parents_table:
-            self.candidate_parents_table.append(pck['unique_id'])
-        if pck['unique_id'] not in self.neighbors_table.keys():
-            self.neighbors_table[pck['unique_id']] = pck
+        pck['arrival_time'] = self.now
+        # compute Euclidean distance between self and neighbor
+        if pck['unique_id'] in NODE_POS and self.id in NODE_POS:
+            x1, y1 = NODE_POS[self.id]
+            x2, y2 = NODE_POS[pck['unique_id']]
+            pck['distance'] = math.hypot(x1 - x2, y1 - y2)
+        self.neighbors_table[pck['unique_id']] = pck
+
+        if pck['unique_id'] not in self.child_networks_table.keys() or pck['unique_id'] not in self.members_table:
+            if pck['unique_id'] not in self.candidate_parents_table:
+                self.candidate_parents_table.append(pck['unique_id'])
 
     def select_and_join(self):
         min_hop = 99999
@@ -192,29 +198,24 @@ class SensorNode(wsn.Node):
         3. Else
             next_hop = self.parent
         """
-        #direct delivery:
-        #if pck['dest'] == 
-        #print(pck['dest'])
 
         #Send up as an else case
-        if self.role != Roles.ROOT:
+        if self.role != Roles.ROOT: #default case: send up
             pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
+
         #1. Direct Delivery: if in immediate vicinity, route to dest
         if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
-            #print("FOUND")
-            #print(pck['dest'].node_addr)
-            #print(self.neighbors_table)
             pck['next_hop'] = pck['dest']
-        #2. 
+        #2. Clusterhead routing
         if self.ch_addr is not None:
-            if pck['dest'].net_addr == self.ch_addr.net_addr:
+            if pck['dest'].net_addr == self.ch_addr.net_addr: #route to CH
                 pck['next_hop'] = pck['dest']
-            else:
+            else: #send back down
                 for child_gui, child_networks in self.child_networks_table.items():
                     if pck['dest'].net_addr in child_networks:
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
                         break
-        
+        #TODO ADD 1 hop routing
         self.send(pck)
     def send_probe(self): #probe to discover network
         self.send(self.create_pck(msg_type=MESSAGE_TYPES['PROBE'], dest=wsn.BROADCAST_ADDR, unique_id=self.id))
@@ -270,7 +271,9 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.route_and_forward_package({'dest': self.root_addr, 'msg_type': 'NETID_REQUEST', 'source': self.addr})
+        self.log("ROOT ADDR")
+        self.log(self.root_addr)
+        self.route_and_forward_package({'dest': self.root_addr, 'msg_type': MESSAGE_TYPES['NETID_REQUEST'], 'source': self.addr})
     ###################
     def send_network_reply(self, dest, addr):
         """Sending network reply message to dest address to be cluster head with a new adress
@@ -282,8 +285,26 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.route_and_forward_package({'dest': dest, 'msg_type': 'NETID_RESPONSE', 'source': self.addr, 'addr': addr})
+        self.route_and_forward_package({'dest': dest, 'msg_type': MESSAGE_TYPES['NETID_RESPONSE'], 'source': self.addr, 'addr': addr})
+    ###################
+    def send_network_update(self):
+        """Sending network update message to parent
 
+        Args:
+
+        Returns:
+
+        """
+        child_networks = [self.ch_addr.net_addr]
+        for networks in self.child_networks_table.values():
+            child_networks.extend(networks)
+        self.log("CHILD NETWORKS")
+        self.log(self.child_networks_table)
+        self.send({'dest': self.neighbors_table[self.parent_gui]['ch_addr'], 'msg_type': MESSAGE_TYPES['NETWORK_UPDATE'], 'source': self.addr,
+                   'unique_id': self.id, 'child_networks': child_networks})
+    ###################
+    def get_member_count(self):
+        return len(self.members_table)
     ###################
     def on_receive(self, pck):
         if self.role == Roles.UNDISCOVERED:
@@ -293,6 +314,7 @@ class SensorNode(wsn.Node):
                 self.update_neighbor(pck)
         if self.role == Roles.UNREGISTERED:
             if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
+                self.log("updating neighbor")
                 self.update_neighbor(pck)
             if pck['msg_type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
                 if pck['dest_gui'] == self.id:
@@ -316,7 +338,10 @@ class SensorNode(wsn.Node):
         if self.role == Roles.REGISTERED:
             if pck['msg_type'] == MESSAGE_TYPES['PROBE']:
                 self.send_heartbeat()
+            if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
+                self.update_neighbor(pck)
             if pck['msg_type'] == MESSAGE_TYPES['JOIN_REQUEST']:
+                self.log("JOIN_REQUEST REG")
                 self.received_JR_guis.append(pck['unique_id'])
                 self.send_netid_request()
             if pck['msg_type'] == MESSAGE_TYPES['NETID_RESPONSE']:
@@ -328,7 +353,7 @@ class SensorNode(wsn.Node):
                     self.log(f"CH CSV export error: {e}")
                 self.scene.nodecolor(self.id, 0, 0, 1)
                 self.ch_addr = pck['addr']
-                #self.send_network_update()
+                self.send_network_update()
                 # yield self.timeout(.5)
                 self.send_heartbeat()
                 for gui in self.received_JR_guis:
@@ -339,7 +364,9 @@ class SensorNode(wsn.Node):
                         self.net_capacity -= 1
                 #self.received_JR_guis = [] #reset our jr list
         if self.role == Roles.ROOT or self.role == Roles.CLUSTER_HEAD:  # if the node is root or cluster head
-            if ('next_hop' in pck and pck['next_hop'] is not None and pck['dest'] != self.addr and pck['dest'] != self.ch_addr):
+            #if ('next_hop' in pck.keys() and pck['next_hop'] is not None and pck['dest'] != self.addr and pck['dest'] != self.ch_addr):
+            if ('next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr):
+                self.log("ROUTING")
                 self.route_and_forward_package(pck)
                 return
             if pck['msg_type'] == MESSAGE_TYPES['HEARTBEAT']:
@@ -348,18 +375,19 @@ class SensorNode(wsn.Node):
                 # yield self.timeout(.5)
                 self.send_heartbeat()
             if pck['msg_type'] == MESSAGE_TYPES['JOIN_REQUEST']:  # it waits and sends join reply message once received join request
-                if self.net_capacity > 0:
+                if self.get_member_count() < MAX_NET_NODES:
                     #we can add them, send join req reply
-                    self.send_join_reply(pck['unique_id'], wsn.Addr(self.ch_addr.net_addr, MAX_NET_NODES - self.net_capacity))
-                    self.net_capacity -= 1
+                    #self.log("JOIN_REQUEST")
+                    self.send_join_reply(pck['unique_id'], wsn.Addr(self.ch_addr.net_addr, MAX_NET_NODES - self.get_member_count()))
             if pck['msg_type'] == MESSAGE_TYPES['NETID_REQUEST']:  # it sends a network reply to requested node
                 # yield self.timeout(.5)
+                self.log("NETID_REQUEST")
                 if self.role == Roles.ROOT:
                     new_addr = wsn.Addr(pck['source'].node_addr,254)
                     self.send_network_reply(pck['source'],new_addr)
             if pck['msg_type'] == MESSAGE_TYPES['JOIN_ACK']:
                 self.members_table.append(pck['unique_id'])
-            if pck['msg_type'] == MESSAGE_TYPES['TABLE_SHARE']:
+            if pck['msg_type'] == MESSAGE_TYPES['NETWORK_UPDATE']:
                 self.child_networks_table[pck['unique_id']] = pck['child_networks']
                 if self.role != Roles.ROOT:
                     self.send_network_update()
@@ -372,7 +400,7 @@ class SensorNode(wsn.Node):
     def on_timer_fired(self, name, *args, **kwargs):
         if name == 'TIMER_ARRIVAL':
             self.wake_up()
-            self.log('HELLONODES')
+            #self.log('HELLONODES')
             self.set_timer('TIMER_PROBE', 1)
         elif name == 'TIMER_PROBE':
             if self.c_probe < self.th_probe:
