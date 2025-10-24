@@ -1,1 +1,11 @@
 1. TODO: Show the packets being sent over the network
+
+
+Mesh routing:
+    - Ever so often, less often then heartbeat, share N hop neighbor table
+    - Share this neighbor table to immediate neighbors
+    - If the receiving node thinks it makes sense to update the entry or add an entry from the neighbor table
+        - the next hop for the given dest will be the author of the neighbor table sharing
+
+Testing:
+    - Send data to random nodes and trace the path
