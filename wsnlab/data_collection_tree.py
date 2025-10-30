@@ -307,6 +307,38 @@ class SensorNode(wsn.Node):
 
         self.send({'dest': self.neighbors_table[self.parent_gui]['ch_addr'], 'type': 'NETWORK_UPDATE', 'source': self.addr,
                    'gui': self.id, 'child_networks': child_networks})
+    ###################
+    def send_sensor_data(self):
+        """Sending network update message to parent
+
+        Args:
+
+        Returns:
+
+        """
+        print(self.neighbors_table)
+        print(len(self.neighbors_table))
+        #choose random node in neighbor table
+        #    self.route_and_forward_package({'dest': self.root_addr, 'type': 'SENSOR', 'source': self.addr, 'sensor_value': random.uniform(10,50)})
+        if self.neighbors_table:
+            rand_key = random.choice(list(self.neighbors_table.keys()))
+            self.send({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
+                   'gui': self.id, 'sensor_value': random.uniform(0,100)})
+    ###################
+    def send_table_share(self):
+        """Sending network update message to parent
+
+        Args:
+
+        Returns:
+
+        """
+        child_networks = [self.ch_addr.net_addr]
+        for networks in self.child_networks_table.values():
+            child_networks.extend(networks)
+
+        self.send({'dest': self.neighbors_table[self.parent_gui]['ch_addr'], 'type': 'NETWORK_UPDATE', 'source': self.addr,
+                   'gui': self.id, 'child_networks': child_networks})
 
     ###################
     def on_receive(self, pck):
@@ -428,6 +460,8 @@ class SensorNode(wsn.Node):
                     self.ch_addr = wsn.Addr(self.id, 254)
                     self.root_addr = self.addr
                     self.hop_count = 0
+                    self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
+
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time
                     self.c_probe = 0
@@ -443,12 +477,17 @@ class SensorNode(wsn.Node):
                 self.become_unregistered()
             else:  # otherwise it chose one of them and sends join request
                 self.select_and_join()
-
+        elif name == 'TIMER_TABLE_SHARE':
+            self.send_table_share()
+            self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
         elif name == 'TIMER_SENSOR':
-            self.route_and_forward_package({'dest': self.root_addr, 'type': 'SENSOR', 'source': self.addr, 'sensor_value': random.uniform(10,50)})
-            timer_duration =  self.id % 20
-            if timer_duration == 0: timer_duration = 1
-            self.set_timer('TIMER_SENSOR', timer_duration)
+            self.send_sensor_data()
+            self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
+        #elif name == 'TIMER_SENSOR':
+        #    self.route_and_forward_package({'dest': self.root_addr, 'type': 'SENSOR', 'source': self.addr, 'sensor_value': random.uniform(10,50)})
+        #    timer_duration =  self.id % 20
+        #    if timer_duration == 0: timer_duration = 1
+        #    self.set_timer('TIMER_SENSOR', timer_duration)
         elif name == 'TIMER_EXPORT_CH_CSV':
             # Only root should drive exports (cheap guard)
             if self.role == Roles.ROOT:
