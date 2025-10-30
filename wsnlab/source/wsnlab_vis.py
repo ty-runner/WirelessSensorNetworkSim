@@ -54,13 +54,33 @@ class Node(wsnlab.Node):
         #self.delayed_exec(0.2, self.scene.delshape, obj_id)
         
         # When unicast is added, it needs to be re-arranged
-        # if not pck['dest'].is_equal(wsnlab.BROADCAST_ADDR):
-        #     destPos = self.sim.nodes[pck['dest'].l].pos
-        #     obj_id = self.scene.line(
-        #         self.pos[0], self.pos[1],
-        #         destPos[0], destPos[1],
-        #         line="wsnsimpy:unicast")
-        #     self.delayed_exec(0.2,self.scene.delshape,obj_id)
+        if not pck['dest'].is_equal(wsnlab.BROADCAST_ADDR):
+            if pck['dest'].node_addr != 254:
+                src_x, src_y = self.pos
+                dest_x, dest_y = self.sim.nodes[pck['dest'].node_addr].pos
+
+                # Draw the line (path)
+                line_id = self.scene.line(
+                    src_x, src_y,
+                    dest_x, dest_y,
+                    line="wsnsimpy:unicast"
+                )
+
+                # Animate a moving dot (packet)
+                steps = 20
+                for i in range(steps + 1):
+                    t = i / steps
+                    dot_x = src_x + (dest_x - src_x) * t
+                    dot_y = src_y + (dest_y - src_y) * t
+
+                    # create + schedule deletion of each circle
+                    dot_id = self.scene.circle(dot_x, dot_y, 1, line="wsnsimpy:packet")
+                    self.delayed_exec(0.01 * (i + 1), self.scene.delshape, dot_id)
+
+                # Remove the line after a short delay
+                self.delayed_exec(0.25, self.scene.delshape, line_id)
+
+
 
     ###################
 
@@ -159,6 +179,7 @@ class Simulator(wsnlab.Simulator):
             self.scene.linestyle("wsnsimpy:tx", color=(0, 0, 1), dash=(5, 5))
             self.scene.linestyle("wsnsimpy:ack", color=(0, 1, 1), dash=(5, 5))
             self.scene.linestyle("wsnsimpy:unicast", color=(0, 0, 1), width=3, arrow='head')
+            self.scene.linestyle("wsnsimpy:packet", color=(1, 0, 0), width=3)
             self.scene.linestyle("wsnsimpy:collision", color=(1, 0, 0), width=3)
             self.scene.linestyle("parent", color=(0,.8,0), arrow="tail", width=2)
             if title is None:
