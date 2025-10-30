@@ -53,8 +53,9 @@ class Addr:
            Returns:
                bool: returns True if the objects are equal, otherwise False.
         """
-        if self.net_addr == other.net_addr and self.node_addr == other.node_addr:
-            return True
+        if other != None:
+            if self.net_addr == other.net_addr and self.node_addr == other.node_addr:
+                return True
         return False
 
     ############################
