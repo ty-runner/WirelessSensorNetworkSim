@@ -137,6 +137,7 @@ class SensorNode(wsn.Node):
             x1, y1 = NODE_POS[self.id]
             x2, y2 = NODE_POS[pck['gui']]
             pck['distance'] = math.hypot(x1 - x2, y1 - y2)
+        pck['neighbor_hop_count'] = 1
         self.neighbors_table[pck['gui']] = pck
 
         if pck['gui'] not in self.child_networks_table.keys() or pck['gui'] not in self.members_table:
@@ -316,14 +317,16 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        print(self.neighbors_table)
-        print(len(self.neighbors_table))
+        #print(self.neighbors_table)
+        #print(len(self.neighbors_table))
         #choose random node in neighbor table
         #    self.route_and_forward_package({'dest': self.root_addr, 'type': 'SENSOR', 'source': self.addr, 'sensor_value': random.uniform(10,50)})
         if self.neighbors_table:
             rand_key = random.choice(list(self.neighbors_table.keys()))
-            self.send({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
-                   'gui': self.id, 'sensor_value': random.uniform(0,100)})
+            #self.send({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
+            #       'gui': self.id, 'sensor_value': random.uniform(0,100)})
+            self.route_and_forward_package({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
+               'gui': self.id, 'sensor_value': random.uniform(0,100)})
     ###################
     def send_table_share(self):
         """Sending network update message to parent
@@ -333,12 +336,15 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        child_networks = [self.ch_addr.net_addr]
-        for networks in self.child_networks_table.values():
-            child_networks.extend(networks)
-
-        self.send({'dest': self.neighbors_table[self.parent_gui]['ch_addr'], 'type': 'NETWORK_UPDATE', 'source': self.addr,
-                   'gui': self.id, 'child_networks': child_networks})
+        #for a N hop mesh routing scheme, share the neighhbors of a node that are N hops away
+        mesh_neighbors = {}
+        for neighbor,packet in self.neighbors_table.items():
+            if packet['neighbor_hop_count'] == config.MESH_HOP_N:
+                mesh_neighbors[neighbor] = packet
+                #collect list of these hop count neighbors, and send to all immediate neighbors
+        for neighbor in self.neighbors_table.values():
+            self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
+                    'gui': self.id, 'neighbors': mesh_neighbors})
 
     ###################
     def on_receive(self, pck):
@@ -372,7 +378,18 @@ class SensorNode(wsn.Node):
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 if self.role != Roles.ROOT:
                     self.send_network_update()
-            if pck['type'] == 'SENSOR':
+            if pck['type'] == 'TABLE_SHARE':
+                #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
+                if self.role != Roles.ROOT:
+                    for neighbor, packet in pck['neighbors'].items():
+                        if neighbor not in self.neighbors_table and neighbor != self.id:
+                            cpy = packet.copy()
+                            cpy['neighbor_hop_count'] += 1
+                            cpy['next_hop'] = pck['source']
+                            self.neighbors_table[neighbor] = cpy
+                            if cpy['neighbor_hop_count'] > config.MESH_HOP_N + 1:
+                                raise Exception("Something went wrong")
+            if pck['type'] == 'SENSOR_DATA':
                 pass
                 # self.log(str(pck['source'])+'--'+str(pck['sensor_value']))
 
@@ -386,6 +403,16 @@ class SensorNode(wsn.Node):
                 self.received_JR_guis.append(pck['gui'])
                 # yield self.timeout(.5)
                 self.send_network_request()
+            if pck['type'] == 'TABLE_SHARE':
+                #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
+                for neighbor, packet in pck['neighbors'].items():
+                    if neighbor not in self.neighbors_table and neighbor != self.id:
+                        cpy = packet.copy()
+                        cpy['neighbor_hop_count'] += 1
+                        cpy['next_hop'] = pck['source']
+                        self.neighbors_table[neighbor] = cpy
+                        if cpy['neighbor_hop_count'] > config.MESH_HOP_N + 1:
+                            raise Exception("Something went wrong")
             if pck['type'] == 'NETWORK_REPLY':  # it becomes cluster head and send join reply to the candidates
                 self.set_role(Roles.CLUSTER_HEAD)
                 try:
@@ -426,6 +453,8 @@ class SensorNode(wsn.Node):
                         self.send_network_update()
                     else:
                         self.set_role(Roles.REGISTERED)
+                        self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
+
                     # # sensor implementation
                     # timer_duration =  self.id % 20
                     # if timer_duration == 0: timer_duration = 1

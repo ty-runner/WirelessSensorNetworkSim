@@ -19,6 +19,7 @@ SIM_TERRAIN_SIZE = (1400, 1400)  #terrain size
 SIM_TITLE = 'Data Collection Tree'  # title of visualization window
 SIM_VISUALIZATION = True  # visualization active
 SCALE = 1  # scale factor for visualization
+VIS = 1
 
 
 ## application properties
@@ -26,6 +27,7 @@ SLEEP_MODE_PROBE_TIME_INTERVAL = 30
 HEART_BEAT_TIME_INTERVAL = 1
 JOIN_REQUEST_TIME_INTERVAL = 5
 DATA_INTERVAL = 100
+MESH_HOP_N = 1
 TABLE_SHARE_INTERVAL = 30
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
 EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
