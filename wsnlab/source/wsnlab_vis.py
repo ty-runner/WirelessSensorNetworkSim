@@ -55,19 +55,23 @@ class Node(wsnlab.Node):
         
         # When unicast is added, it needs to be re-arranged
         if not pck['dest'].is_equal(wsnlab.BROADCAST_ADDR):
-            if pck['dest'].node_addr != 254:
+            print(pck)
+            if 'next_hop' in pck.keys():
+                addr = pck['next_hop'].node_addr
+                if addr == 254:
+                    addr = pck['next_hop'].net_addr
                 src_x, src_y = self.pos
-                dest_x, dest_y = self.sim.nodes[pck['dest'].node_addr].pos
+                dest_x, dest_y = self.sim.nodes[addr].pos
 
                 # Draw the line (path)
-                line_id = self.scene.line(
-                    src_x, src_y,
-                    dest_x, dest_y,
-                    line="wsnsimpy:unicast"
-                )
+                #line_id = self.scene.line(
+                #    src_x, src_y,
+                #    dest_x, dest_y,
+                #    line="wsnsimpy:unicast"
+                #)
 
                 # Animate a moving dot (packet)
-                steps = 20
+                steps = 25
                 for i in range(steps + 1):
                     t = i / steps
                     dot_x = src_x + (dest_x - src_x) * t
@@ -75,10 +79,34 @@ class Node(wsnlab.Node):
 
                     # create + schedule deletion of each circle
                     dot_id = self.scene.circle(dot_x, dot_y, 1, line="wsnsimpy:packet")
-                    self.delayed_exec(0.01 * (i + 1), self.scene.delshape, dot_id)
+                    self.delayed_exec(0.02 * (i + 1), self.scene.delshape, dot_id)               
+            else:
+                addr = pck['dest'].node_addr
+                if addr == 254:
+                    addr = pck['dest'].net_addr             
+                src_x, src_y = self.pos
+                dest_x, dest_y = self.sim.nodes[addr].pos
+
+                # Draw the line (path)
+                #line_id = self.scene.line(
+                #    src_x, src_y,
+                #    dest_x, dest_y,
+                #    line="wsnsimpy:unicast"
+                #)
+
+                # Animate a moving dot (packet)
+                steps = 25
+                for i in range(steps + 1):
+                    t = i / steps
+                    dot_x = src_x + (dest_x - src_x) * t
+                    dot_y = src_y + (dest_y - src_y) * t
+
+                    # create + schedule deletion of each circle
+                    dot_id = self.scene.circle(dot_x, dot_y, 1, line="wsnsimpy:packet")
+                    self.delayed_exec(0.02 * (i + 1), self.scene.delshape, dot_id)
 
                 # Remove the line after a short delay
-                self.delayed_exec(0.25, self.scene.delshape, line_id)
+                #self.delayed_exec(0.25, self.scene.delshape, line_id)
 
 
 
