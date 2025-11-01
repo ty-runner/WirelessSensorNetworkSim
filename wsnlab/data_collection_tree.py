@@ -251,6 +251,7 @@ class SensorNode(wsn.Node):
         #Send up as an else case
         if self.role != Roles.ROOT:
             pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
+            path_str = "TREE"
         #1. Direct Delivery: if in immediate vicinity, route to dest
 
         #2. 
@@ -262,6 +263,7 @@ class SensorNode(wsn.Node):
                     if pck['dest'].net_addr in child_networks:
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
                         break
+            path_str = "TREE"
         if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
             #print("FOUND")
             #print(pck['dest'].node_addr)
@@ -270,8 +272,12 @@ class SensorNode(wsn.Node):
                 #we can use mesh routing!
                 pck['next_hop'] = self.neighbors_table[pck['dest'].node_addr]['next_hop']
                 print("routed with mesh")
+                path_str = "MESH"
             else:
                 pck['next_hop'] = pck['dest']
+                path_str = "DIRECT"
+        next_hop_str = str(pck.get('next_hop', 'UNKNOWN'))
+        log_packet_route(pck, self, next_hop_str, path_str)
         self.send(pck)
 
     ###################
@@ -552,7 +558,24 @@ def write_node_distances_csv(path="node_distances.csv"):
                 x2, y2 = NODE_POS[tid]
                 dist = math.hypot(x1 - x2, y1 - y2)
                 w.writerow([sid, tid, f"{dist:.6f}"])
+with open("packet_routes.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["time", "packet_type", "source", "current_node", "next_hop", "dest", "hop_count", "path_type"])
 
+def log_packet_route(pck, current_node, next_hop, path):
+    """Append a routing trace row to packet_routes.csv."""
+    with open("packet_routes.csv", "a", newline="") as f:
+        w = csv.writer(f)
+        # Write header only if file is empty
+        if f.tell() == 0:
+            w.writerow(["time", "packet_type", "source", "current_node", "next_hop", "dest", "hop_count", "routing_direction"])
+        # Get readable values
+        time = getattr(current_node, "now", "")
+        ptype = pck.get("type", "")
+        src = str(pck.get("source", ""))
+        dest = str(pck.get("dest", ""))
+        hop = pck.get("hop_count", "")
+        w.writerow([time, ptype, src, current_node.id, next_hop, dest, hop, path])
 
 def write_node_distance_matrix_csv(path="node_distance_matrix.csv"):
     ids = sorted(NODE_POS.keys())
