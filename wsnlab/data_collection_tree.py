@@ -252,11 +252,7 @@ class SensorNode(wsn.Node):
         if self.role != Roles.ROOT:
             pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
         #1. Direct Delivery: if in immediate vicinity, route to dest
-        if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
-            #print("FOUND")
-            #print(pck['dest'].node_addr)
-            #print(self.neighbors_table)
-            pck['next_hop'] = pck['dest']
+
         #2. 
         if self.ch_addr is not None:
             if pck['dest'].net_addr == self.ch_addr.net_addr:
@@ -266,7 +262,16 @@ class SensorNode(wsn.Node):
                     if pck['dest'].net_addr in child_networks:
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
                         break
-        
+        if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
+            #print("FOUND")
+            #print(pck['dest'].node_addr)
+            #print(self.neighbors_table)
+            if self.neighbors_table[pck['dest'].node_addr]['neighbor_hop_count'] > 1: 
+                #we can use mesh routing!
+                pck['next_hop'] = self.neighbors_table[pck['dest'].node_addr]['next_hop']
+                print("routed with mesh")
+            else:
+                pck['next_hop'] = pck['dest']
         self.send(pck)
 
     ###################
@@ -343,8 +348,9 @@ class SensorNode(wsn.Node):
                 mesh_neighbors[neighbor] = packet
                 #collect list of these hop count neighbors, and send to all immediate neighbors
         for neighbor in self.neighbors_table.values():
-            self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
-                    'gui': self.id, 'neighbors': mesh_neighbors})
+            if neighbor['neighbor_hop_count'] == config.MESH_HOP_N:
+                self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
+                        'gui': self.id, 'neighbors': mesh_neighbors})
 
     ###################
     def on_receive(self, pck):
@@ -447,6 +453,7 @@ class SensorNode(wsn.Node):
                     self.kill_timer('TIMER_JOIN_REQUEST')
                     self.send_heart_beat()
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
+                    self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
                     self.send_join_ack(pck['source'])
                     if self.ch_addr is not None: # it could be a cluster head which lost its parent
                         self.set_role(Roles.CLUSTER_HEAD)
@@ -489,7 +496,6 @@ class SensorNode(wsn.Node):
                     self.ch_addr = wsn.Addr(self.id, 254)
                     self.root_addr = self.addr
                     self.hop_count = 0
-                    self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
 
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time
