@@ -9,3 +9,14 @@ We want a hop count that is distance from neighbor
 neighbor_hop_count we add this to the heartbeat response as those are our closest neighbors
 Next hop for mesh is not done correctly, it's currently the node in question
 color code different type of messages (table share = purple for example)
+
+
+To measure tx delay timestamp - prop delay and on recv
+
+Tx power, each ch has tx power, once node joins, gets that tx power same as rest of cluster
+
+To resolve loss, need to add watchdog timers to our critical messages
+
+Okay so clusters are created correctly but node id's in the network are still tied to the unique id
+
+we might want to expand the logic for every packet sent on the network, not just routing

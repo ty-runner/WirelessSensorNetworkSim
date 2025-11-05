@@ -376,7 +376,12 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it waits and sends join reply message once received join request
                 # yield self.timeout(.5)
-                self.send_join_reply(pck['gui'], wsn.Addr(self.ch_addr.net_addr, pck['gui']))
+                for node_id, avail in self.node_available_dict.items():
+                    if avail:
+                        avail_node_id = node_id
+                        break
+                self.node_available_dict[avail_node_id] = False #this network is now being used
+                self.send_join_reply(pck['gui'], wsn.Addr(self.ch_addr.net_addr, avail_node_id))
             if pck['type'] == 'NETWORK_REQUEST':  # it sends a network reply to requested node
                 # yield self.timeout(.5)
                 if self.role == Roles.ROOT:
@@ -440,11 +445,18 @@ class SensorNode(wsn.Node):
                 self.scene.nodecolor(self.id, 0, 0, 1)
                 self.ch_addr = pck['addr']
                 self.send_network_update()
+                self.node_available_dict = {i: True for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+
                 # yield self.timeout(.5)
                 self.send_heart_beat()
                 for gui in self.received_JR_guis:
                     # yield self.timeout(random.uniform(.1,.5))
-                    self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,gui))
+                    for node_id, avail in self.node_available_dict.items():
+                        if avail:
+                            avail_node_id = node_id
+                            break
+                    self.node_available_dict[avail_node_id] = False #this network is now being used
+                    self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
 
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
             if pck['type'] == 'HEART_BEAT':  # it kills probe timer, becomes unregistered and sets join request timer once received heart beat
@@ -509,6 +521,7 @@ class SensorNode(wsn.Node):
                     self.root_addr = self.addr
                     self.hop_count = 0
                     self.net_id_available_dict = {i: True for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                    self.node_available_dict = {i: True for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time
