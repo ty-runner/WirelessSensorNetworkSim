@@ -264,10 +264,8 @@ class SensorNode(wsn.Node):
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
                         break
             path_str = "TREE"
+
         if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
-            #print("FOUND")
-            #print(pck['dest'].node_addr)
-            #print(self.neighbors_table)
             if self.neighbors_table[pck['dest'].node_addr]['neighbor_hop_count'] > 1: 
                 #we can use mesh routing!
                 pck['next_hop'] = self.neighbors_table[pck['dest'].node_addr]['next_hop']
@@ -406,6 +404,9 @@ class SensorNode(wsn.Node):
                 # self.log(str(pck['source'])+'--'+str(pck['sensor_value']))
 
         elif self.role == Roles.REGISTERED:  # if the node is registered
+            if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
+                self.route_and_forward_package(pck)
+                return
             if pck['type'] == 'HEART_BEAT':
                 self.update_neighbor(pck)
             if pck['type'] == 'PROBE':

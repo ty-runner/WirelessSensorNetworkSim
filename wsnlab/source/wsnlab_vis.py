@@ -54,7 +54,7 @@ class Node(wsnlab.Node):
         #self.delayed_exec(0.2, self.scene.delshape, obj_id)
         
         # When unicast is added, it needs to be re-arranged
-        if config.VIS == 1:
+        if config.VIS == 1: #change to routing mech rather than packet type class
             if pck['type'] == 'TABLE_SHARE': 
                 self.draw_pck_trace(pck, "wsnsimpy:mesh")
             elif pck['type'] == 'SENSOR_DATA':
