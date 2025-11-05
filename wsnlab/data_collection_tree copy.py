@@ -385,6 +385,7 @@ class SensorNode(wsn.Node):
                             avail_net_id = net_id
                             break
                     new_addr = wsn.Addr(avail_net_id,254)
+                    self.net_id_available_dict[avail_net_id] = False #this network is now being used
                     self.send_network_reply(pck['source'],new_addr)
             if pck['type'] == 'JOIN_ACK':
                 self.members_table.append(pck['gui'])

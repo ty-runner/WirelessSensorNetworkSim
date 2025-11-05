@@ -223,6 +223,7 @@ class Node:
            Returns:
 
         """
+        print(f"PACKET: {pck}")
         for (dist, node) in self.neighbor_distance_list:
             if dist <= self.tx_range:
                 if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
