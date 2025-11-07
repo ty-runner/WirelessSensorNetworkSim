@@ -7,9 +7,8 @@ import math
 from source import config
 from collections import Counter
 
-
 import csv  # <— add this near your other imports
-
+random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
 NODE_POS = {}  # {node_id: (x, y)}
 
@@ -24,6 +23,32 @@ def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
 Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD')
 """Enumeration of roles"""
+def check_all_nodes_registered():
+    """Log every node's status and role to topology.csv and check if all are registered."""
+    filename = "topology.csv"
+
+    # Create or overwrite the CSV file
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Node ID", "Position", "Role"])
+
+        unregistered_nodes = []
+
+        for node in ALL_NODES:
+            role = getattr(node, "role", "UNKNOWN")
+            position = getattr(node, "pos", None)
+            writer.writerow([node.id, position, role])
+
+            if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT}:
+                unregistered_nodes.append(node.id)
+
+    # Console output
+    if not unregistered_nodes:
+        print(f"✅ All {len(ALL_NODES)} nodes are registered. Logged to {filename}.")
+        return True
+    else:
+        print(f"⚠️ Unregistered nodes: {unregistered_nodes}. Logged to {filename}.")
+        return False
 
 ###########################################################
 class SensorNode(wsn.Node):
@@ -65,7 +90,7 @@ class SensorNode(wsn.Node):
         self.members_table = []
         self.net_req_flag = None
         self.received_JR_guis = []  # keeps received Join Request global unique ids
-
+        ALL_NODES.append(self)
     ###################
     def run(self):
         """Setting the arrival timer to wake up after firing.
@@ -761,6 +786,7 @@ write_node_distance_matrix_csv("node_distance_matrix.csv")
 
 # start the simulation
 sim.run()
+check_all_nodes_registered()
 print("Simulation Finished")
 
 

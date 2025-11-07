@@ -20,3 +20,6 @@ To resolve loss, need to add watchdog timers to our critical messages
 Okay so clusters are created correctly but node id's in the network are still tied to the unique id
 
 Current bug: the network id replies increment too fast as wannabe clusterheads are sending multiple netid_req's, so what we have to do is as root, we have to tie each possible CH to a cluster id in the data structure, we can mitigate repeats this way
+
+TESTING SEEDS:
+1: 2 nodes stay unregistered

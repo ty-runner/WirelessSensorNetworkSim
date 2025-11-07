@@ -20,6 +20,7 @@ SIM_TITLE = 'Data Collection Tree'  # title of visualization window
 SIM_VISUALIZATION = True  # visualization active
 SCALE = 1  # scale factor for visualization
 VIS = 0 #0 for no viz, 1 for viz
+SEED = 2 #seed for reproducibility 
 
 
 ## application properties
