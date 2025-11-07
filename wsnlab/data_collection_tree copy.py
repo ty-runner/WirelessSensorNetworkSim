@@ -23,7 +23,7 @@ def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
 Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD')
 """Enumeration of roles"""
-def check_all_nodes_registered():
+def log_all_nodes_registered():
     """Log every node's status and role to topology.csv and check if all are registered."""
     filename = "topology.csv"
 
@@ -49,7 +49,24 @@ def check_all_nodes_registered():
     else:
         print(f"⚠️ Unregistered nodes: {unregistered_nodes}. Logged to {filename}.")
         return False
+def check_all_nodes_registered():
+    """Log every node's status and role to topology.csv and check if all are registered."""
 
+    unregistered_nodes = []
+
+    for node in ALL_NODES:
+        role = getattr(node, "role", "UNKNOWN")
+        position = getattr(node, "pos", None)
+
+        if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT}:
+            unregistered_nodes.append(node.id)
+
+    # Console output
+    if not unregistered_nodes:
+        print(f"✅ All {len(ALL_NODES)} nodes are registered. {sim.now}")
+        return True
+    else:
+        return False
 ###########################################################
 class SensorNode(wsn.Node):
     """SensorNode class is inherited from Node class in wsnlab.py.
@@ -235,7 +252,6 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.log("SEND_JOIN_REPLY")
         self.send({'dest': wsn.BROADCAST_ADDR, 'type': 'JOIN_REPLY', 'source': self.ch_addr,
                    'gui': self.id, 'dest_gui': gui, 'addr': addr, 'root_addr': self.root_addr,
                    'hop_count': self.hop_count+1})
@@ -331,9 +347,6 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.log("NET_REPLY")
-        self.log(dest)
-        self.log(addr)
         self.route_and_forward_package({'dest': dest, 'type': 'NETWORK_REPLY', 'source': self.addr, 'addr': addr})
 
     ###################
@@ -410,11 +423,7 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it waits and sends join reply message once received join request
                 # yield self.timeout(.5)
-                self.log(self.node_available_dict)
                 for node_id, avail in self.node_available_dict.items():
-                    self.log(node_id)
-                    self.log(avail)
-                    self.log(pck)
                     if avail is None or avail == pck['gui']:
                         avail_node_id = node_id
                         break
@@ -425,7 +434,6 @@ class SensorNode(wsn.Node):
                 if self.role == Roles.ROOT:
                     avail_net_id = None
                     for net_id, avail in self.net_id_available_dict.items():
-                        self.log(pck)
                         if avail is None or avail == pck['source']:
                             avail_net_id = net_id
                             break
@@ -435,10 +443,8 @@ class SensorNode(wsn.Node):
                         self.log(pck)
                     new_addr = wsn.Addr(avail_net_id,254)
                     self.net_id_available_dict[avail_net_id] = pck['source'] #this network is now being used
-                    self.log(self.net_id_available_dict)
                     self.send_network_reply(pck['source'],new_addr)
             if pck['type'] == 'JOIN_ACK':
-                self.log(pck)
                 self.members_table.append(pck['source'])
             if pck['type'] == 'NETWORK_UPDATE':
                 self.child_networks_table[pck['gui']] = pck['child_networks']
@@ -471,8 +477,6 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
                 self.received_JR_guis.append(pck['gui'])
                 # yield self.timeout(.5)
-                self.log("JOIN_REQ")
-                self.log(self.addr)
                 self.send_network_request() #this is getting spammed
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
@@ -486,7 +490,7 @@ class SensorNode(wsn.Node):
                             raise Exception("Something went wrong")
             if pck['type'] == 'NETWORK_REPLY':  # it becomes cluster head and send join reply to the candidates
                 self.set_role(Roles.CLUSTER_HEAD)
-                self.log("REG NET REPLY")
+                check_all_nodes_registered()
                 try:
                     write_clusterhead_distances_csv("clusterhead_distances.csv")
                 except Exception as e:
@@ -514,7 +518,6 @@ class SensorNode(wsn.Node):
                 self.become_unregistered()
 
         if self.role == Roles.UNREGISTERED:  # if the node is unregistered
-            self.log(pck)
             if pck['type'] == 'HEART_BEAT':
                 self.update_neighbor(pck)
             if pck['type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
@@ -534,6 +537,9 @@ class SensorNode(wsn.Node):
                         self.send_network_update()
                     else:
                         self.set_role(Roles.REGISTERED)
+                        check_all_nodes_registered()
+                        #check if all nodes are registered
+                        
                         self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
 
                     # # sensor implementation
@@ -792,7 +798,7 @@ write_node_distance_matrix_csv("node_distance_matrix.csv")
 
 # start the simulation
 sim.run()
-check_all_nodes_registered()
+log_all_nodes_registered()
 print("Simulation Finished")
 
 
