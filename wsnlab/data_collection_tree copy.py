@@ -63,6 +63,7 @@ class SensorNode(wsn.Node):
         self.candidate_parents_table = []
         self.child_networks_table = {}
         self.members_table = []
+        self.net_req_flag = None
         self.received_JR_guis = []  # keeps received Join Request global unique ids
 
     ###################
@@ -154,7 +155,7 @@ class SensorNode(wsn.Node):
                 min_hop_gui = gui
         selected_addr = self.neighbors_table[min_hop_gui]['source']
         self.send_join_request(selected_addr)
-        self.set_timer('TIMER_JOIN_REQUEST', 5)
+        self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
 
 
     ###################
@@ -269,7 +270,6 @@ class SensorNode(wsn.Node):
             if self.neighbors_table[pck['dest'].node_addr]['neighbor_hop_count'] > 1: 
                 #we can use mesh routing!
                 pck['next_hop'] = self.neighbors_table[pck['dest'].node_addr]['next_hop']
-                print("routed with mesh")
                 path_str = "MESH"
             else:
                 pck['next_hop'] = pck['dest']
@@ -300,6 +300,9 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.log("NET_REPLY")
+        self.log(dest)
+        self.log(addr)
         self.route_and_forward_package({'dest': dest, 'type': 'NETWORK_REPLY', 'source': self.addr, 'addr': addr})
 
     ###################
@@ -376,21 +379,32 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it waits and sends join reply message once received join request
                 # yield self.timeout(.5)
+                self.log(self.node_available_dict)
                 for node_id, avail in self.node_available_dict.items():
-                    if avail:
+                    self.log(node_id)
+                    self.log(avail)
+                    self.log(pck)
+                    if avail is None or avail == pck['gui']:
                         avail_node_id = node_id
                         break
-                self.node_available_dict[avail_node_id] = False #this network is now being used
+                self.node_available_dict[avail_node_id] = pck['gui'] #this network is now being used
                 self.send_join_reply(pck['gui'], wsn.Addr(self.ch_addr.net_addr, avail_node_id))
             if pck['type'] == 'NETWORK_REQUEST':  # it sends a network reply to requested node
                 # yield self.timeout(.5)
                 if self.role == Roles.ROOT:
+                    avail_net_id = None
                     for net_id, avail in self.net_id_available_dict.items():
-                        if avail:
+                        self.log(pck)
+                        if avail is None or avail == pck['source']:
                             avail_net_id = net_id
                             break
+                    if avail_net_id is None:
+                        print("BUG")
+                        print(self.net_id_available_dict)
+                        self.log(pck)
                     new_addr = wsn.Addr(avail_net_id,254)
-                    self.net_id_available_dict[avail_net_id] = False #this network is now being used
+                    self.net_id_available_dict[avail_net_id] = pck['source'] #this network is now being used
+                    self.log(self.net_id_available_dict)
                     self.send_network_reply(pck['source'],new_addr)
             if pck['type'] == 'JOIN_ACK':
                 self.members_table.append(pck['gui'])
@@ -425,7 +439,13 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
                 self.received_JR_guis.append(pck['gui'])
                 # yield self.timeout(.5)
-                self.send_network_request()
+                self.log("JOIN_REQ")
+                self.log(self.addr)
+
+                if self.net_req_flag is None:
+                    self.send_network_request() #this is getting spammed
+                    self.net_req_flag = True
+                    self.set_timer("NET_REQ_TIMEOUT", config.NETWORK_REQUEST_TIME_INTERVAL)
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
                 for neighbor, packet in pck['neighbors'].items():
@@ -438,6 +458,7 @@ class SensorNode(wsn.Node):
                             raise Exception("Something went wrong")
             if pck['type'] == 'NETWORK_REPLY':  # it becomes cluster head and send join reply to the candidates
                 self.set_role(Roles.CLUSTER_HEAD)
+                self.log("REG NET REPLY")
                 try:
                     write_clusterhead_distances_csv("clusterhead_distances.csv")
                 except Exception as e:
@@ -445,17 +466,17 @@ class SensorNode(wsn.Node):
                 self.scene.nodecolor(self.id, 0, 0, 1)
                 self.ch_addr = pck['addr']
                 self.send_network_update()
-                self.node_available_dict = {i: True for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                self.node_available_dict = {i: None for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
                 # yield self.timeout(.5)
                 self.send_heart_beat()
                 for gui in self.received_JR_guis:
                     # yield self.timeout(random.uniform(.1,.5))
                     for node_id, avail in self.node_available_dict.items():
-                        if avail:
+                        if avail is None or avail == gui:
                             avail_node_id = node_id
                             break
-                    self.node_available_dict[avail_node_id] = False #this network is now being used
+                    self.node_available_dict[avail_node_id] = gui#this network is now being used
                     self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
 
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
@@ -520,8 +541,8 @@ class SensorNode(wsn.Node):
                     self.ch_addr = wsn.Addr(0, 254)
                     self.root_addr = self.addr
                     self.hop_count = 0
-                    self.net_id_available_dict = {i: True for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
-                    self.node_available_dict = {i: True for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                    self.net_id_available_dict = {i: None for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                    self.node_available_dict = {i: None for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time
@@ -532,7 +553,13 @@ class SensorNode(wsn.Node):
             self.send_heart_beat()
             self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
             #print(self.id)
-
+        elif name == "NET_REQ_TIMEOUT": #check if we are a clusterhead yet, if we are, cancel timer, else, resend
+            self.log("TIMEOUT")
+            if self.role == Roles.CLUSTER_HEAD or self.role == Roles.ROOT:
+                self.kill_timer("NET_REQ_TIMEOUT")
+            else:
+                self.send_network_request()
+                self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
             if len(self.candidate_parents_table) == 0:
                 self.become_unregistered()
@@ -542,6 +569,7 @@ class SensorNode(wsn.Node):
             self.send_table_share()
             self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
         elif name == 'TIMER_SENSOR':
+            return #TEMP FIX
             self.send_sensor_data()
             self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
         #elif name == 'TIMER_SENSOR':

@@ -14,11 +14,11 @@ NODE_LOSS_CHANCE = 0.0 #percentage points, i.e 10 = 10%
 SIM_NODE_COUNT = 100  # noce count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 75  # cell size to place one node
 SIM_DURATION = 5000  # simulation Duration in seconds
-SIM_TIME_SCALE = 0.1  #  The real time dureation of 1 second simualtion time
+SIM_TIME_SCALE = 0.001  #  The real time dureation of 1 second simualtion time
 SIM_TERRAIN_SIZE = (1400, 1400)  #terrain size
 SIM_TITLE = 'Data Collection Tree'  # title of visualization window
 SIM_VISUALIZATION = True  # visualization active
-SCALE = 1  # scale factor for visualization
+SCALE = 0.8  # scale factor for visualization
 VIS = 0 #0 for no viz, 1 for viz
 
 
