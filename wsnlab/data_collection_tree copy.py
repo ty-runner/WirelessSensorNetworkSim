@@ -166,7 +166,7 @@ class SensorNode(wsn.Node):
         pck['neighbor_hop_count'] = 1
         self.neighbors_table[pck['gui']] = pck
 
-        if pck['gui'] not in self.child_networks_table.keys() or pck['gui'] not in self.members_table:
+        if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
             if pck['gui'] not in self.candidate_parents_table:
                 self.candidate_parents_table.append(pck['gui'])
 
@@ -257,49 +257,54 @@ class SensorNode(wsn.Node):
         """Routing and forwarding given package
 
         Args:
-            pck (Dict): package to route and forward it should contain dest, source and type.
-        Returns:
-
+            pck (Dict): package to route and forward, should contain dest, source, and type.
         """
 
-        """
-        Logic we want:
-        1. Direct delivery: 
-            if destID in neighbor table or members table -> next_hop = dest_id
-        2. Known Child Cluster:
-            if the parent of destID exists in the child next table -> next_hop = destID.parent
-        3. Else
-            next_hop = self.parent
-        """
-        #direct delivery:
-        #if pck['dest'] == 
-        #print(pck['dest'])
+        path_str = "UNKNOWN"  # default
 
-        #Send up as an else case
+        # Send up as an else case (tree routing)
         if self.role != Roles.ROOT:
             pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
             path_str = "TREE"
-        #1. Direct Delivery: if in immediate vicinity, route to dest
 
-        #2. 
+        # Direct delivery or child cluster routing
         if self.ch_addr is not None:
             if pck['dest'].net_addr == self.ch_addr.net_addr:
                 pck['next_hop'] = pck['dest']
+                path_str = "TREE"
             else:
                 for child_gui, child_networks in self.child_networks_table.items():
                     if pck['dest'].net_addr in child_networks:
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
+                        path_str = "TREE"
                         break
-            path_str = "TREE"
 
-        if pck['dest'].node_addr in self.neighbors_table or pck['dest'].node_addr in self.members_table: 
-            if self.neighbors_table[pck['dest'].node_addr]['neighbor_hop_count'] > 1: 
-                #we can use mesh routing!
-                pck['next_hop'] = self.neighbors_table[pck['dest'].node_addr]['next_hop']
+        # Search neighbors_table values for a match by 'addr'
+        neighbor_match = next(
+            (entry for entry in self.neighbors_table.values() if entry['addr'] == pck['dest']),
+            None
+        )
+
+        # Search members_table values for a match by 'addr' if no neighbor match
+        member_match = None
+        if not neighbor_match:
+            member_match = next(
+                (entry for entry in self.members_table if entry == pck['dest']),
+                None
+            )
+
+        # Decide routing based on found match
+        match = neighbor_match or member_match
+        if match:
+            # Mesh routing if neighbor_hop_count > 1, else direct
+            if match.get('neighbor_hop_count', 1) > 1:
+                pck['next_hop'] = match.get('next_hop', pck['dest'])
                 path_str = "MESH"
             else:
                 pck['next_hop'] = pck['dest']
                 path_str = "DIRECT"
+
+        # Log and send the packet
         next_hop_str = str(pck.get('next_hop', 'UNKNOWN'))
         log_packet_route(pck, self, next_hop_str, path_str)
         self.send(pck)
@@ -433,7 +438,8 @@ class SensorNode(wsn.Node):
                     self.log(self.net_id_available_dict)
                     self.send_network_reply(pck['source'],new_addr)
             if pck['type'] == 'JOIN_ACK':
-                self.members_table.append(pck['gui'])
+                self.log(pck)
+                self.members_table.append(pck['source'])
             if pck['type'] == 'NETWORK_UPDATE':
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 if self.role != Roles.ROOT:
