@@ -210,6 +210,7 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.log("SEND_JOIN_REPLY")
         self.send({'dest': wsn.BROADCAST_ADDR, 'type': 'JOIN_REPLY', 'source': self.ch_addr,
                    'gui': self.id, 'dest_gui': gui, 'addr': addr, 'root_addr': self.root_addr,
                    'hop_count': self.hop_count+1})
@@ -441,11 +442,7 @@ class SensorNode(wsn.Node):
                 # yield self.timeout(.5)
                 self.log("JOIN_REQ")
                 self.log(self.addr)
-
-                if self.net_req_flag is None:
-                    self.send_network_request() #this is getting spammed
-                    self.net_req_flag = True
-                    self.set_timer("NET_REQ_TIMEOUT", config.NETWORK_REQUEST_TIME_INTERVAL)
+                self.send_network_request() #this is getting spammed
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
                 for neighbor, packet in pck['neighbors'].items():
@@ -486,6 +483,7 @@ class SensorNode(wsn.Node):
                 self.become_unregistered()
 
         if self.role == Roles.UNREGISTERED:  # if the node is unregistered
+            self.log(pck)
             if pck['type'] == 'HEART_BEAT':
                 self.update_neighbor(pck)
             if pck['type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
@@ -553,13 +551,13 @@ class SensorNode(wsn.Node):
             self.send_heart_beat()
             self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
             #print(self.id)
-        elif name == "NET_REQ_TIMEOUT": #check if we are a clusterhead yet, if we are, cancel timer, else, resend
-            self.log("TIMEOUT")
-            if self.role == Roles.CLUSTER_HEAD or self.role == Roles.ROOT:
-                self.kill_timer("NET_REQ_TIMEOUT")
-            else:
-                self.send_network_request()
-                self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
+        #elif name == "NET_REQ_TIMEOUT": #check if we are a clusterhead yet, if we are, cancel timer, else, resend
+        #    self.log("TIMEOUT")
+        #    if self.role == Roles.CLUSTER_HEAD or self.role == Roles.ROOT:
+        #        self.kill_timer("NET_REQ_TIMEOUT")
+        #    else:
+        #        self.send_network_request()
+        #        self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
             if len(self.candidate_parents_table) == 0:
                 self.become_unregistered()
