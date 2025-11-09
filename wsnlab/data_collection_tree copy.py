@@ -49,6 +49,13 @@ def log_all_nodes_registered():
     else:
         print(f"⚠️ Unregistered nodes: {unregistered_nodes}. Logged to {filename}.")
         return False
+with open("registration_log.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["node_id", "start_time", "registered_time", "delta_time"])
+def log_registration_time(node_id, start_time, registered_time, diff):
+    with open("registration_log.csv", "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([node_id, start_time, registered_time, diff])
 def check_all_nodes_registered():
     """Log every node's status and role to topology.csv and check if all are registered."""
 
@@ -96,6 +103,7 @@ class SensorNode(wsn.Node):
         self.ch_addr = None #clusterhead address
         self.parent_gui = None 
         self.root_addr = None
+        self.wake_up_time = None
         self.set_role(Roles.UNDISCOVERED)
         self.is_root_eligible = True if self.id == ROOT_ID else False
         self.c_probe = 0  # c means counter and probe is the name of counter
@@ -120,6 +128,12 @@ class SensorNode(wsn.Node):
         self.set_timer('TIMER_ARRIVAL', self.arrival)
 
     ###################
+    def register(self):
+        # Called when node successfully registers
+        self.registered_time = self.now
+        diff = self.registered_time - self.wake_up_time
+        print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
+        log_registration_time(self.id, self.wake_up_time, self.registered_time, diff)
 
     def set_role(self, new_role, *, recolor=True):
         """Central place to switch roles, keep tallies, and (optionally) recolor."""
@@ -537,6 +551,7 @@ class SensorNode(wsn.Node):
                         self.send_network_update()
                     else:
                         self.set_role(Roles.REGISTERED)
+                        self.register()
                         check_all_nodes_registered()
                         #check if all nodes are registered
                         
@@ -561,6 +576,7 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':  # it wakes up and set timer probe once time arrival timer fired
             self.scene.nodecolor(self.id, 1, 0, 0)  # sets self color to red
             self.wake_up()
+            self.wake_up_time = self.now #measure time when powered on
             self.set_timer('TIMER_PROBE', 1)
 
         elif name == 'TIMER_PROBE':  # it sends probe if counter didn't reach the threshold once timer probe fired.
