@@ -512,7 +512,7 @@ class SensorNode(wsn.Node):
                 self.scene.nodecolor(self.id, 0, 0, 1)
                 self.ch_addr = pck['addr']
                 self.send_network_update()
-                self.node_available_dict = {i: None for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
                 # yield self.timeout(.5)
                 self.send_heart_beat()
@@ -592,8 +592,8 @@ class SensorNode(wsn.Node):
                     self.ch_addr = wsn.Addr(0, 254)
                     self.root_addr = self.addr
                     self.hop_count = 0
-                    self.net_id_available_dict = {i: None for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
-                    self.node_available_dict = {i: None for i in range(1, 254)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                    self.net_id_available_dict = {i: None for i in range(1, config.NUM_OF_CLUSTERS)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
+                    self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time

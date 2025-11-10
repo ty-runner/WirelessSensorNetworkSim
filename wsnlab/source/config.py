@@ -1,7 +1,8 @@
+import math
 ## network properties
 BROADCAST_NET_ADDR = 255
 BROADCAST_NODE_ADDR = 255
-
+TOTAL_BITS = 16
 
 
 ## node properties
@@ -21,7 +22,10 @@ SIM_VISUALIZATION = True  # visualization active
 SCALE = 1  # scale factor for visualization
 VIS = 0 #0 for no viz, 1 for viz
 SEED = 1 #seed for reproducibility 
-
+NUM_OF_CHILDREN = 253 #num of children a given cluster head can have, must be 2^N - 3
+bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
+bits_cluster = TOTAL_BITS - bits_child
+NUM_OF_CLUSTERS = (1 << bits_cluster) - 1
 
 ## application properties
 SLEEP_MODE_PROBE_TIME_INTERVAL = 30
