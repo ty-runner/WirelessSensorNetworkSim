@@ -144,6 +144,8 @@ class Node:
            Returns:
                Node: Created node object.
         """
+        self.power = 21600 #Joules
+        self.tx_current = config.TX_CURRENTS[config.NODE_DEFAULT_TX_POWER] #select max always to start
         self.pos = pos
         self.tx_range = 0
         self.sim = sim
@@ -228,6 +230,7 @@ class Node:
         
         for (dist, node) in self.neighbor_distance_list:
             if dist <= self.tx_range:
+                self.power -= (1000*self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 10 #+10 microjoules for overhead
                 if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                     if node.can_receive(pck):
                         prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001

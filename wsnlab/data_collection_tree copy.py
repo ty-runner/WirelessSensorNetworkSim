@@ -504,6 +504,8 @@ class SensorNode(wsn.Node):
                             raise Exception("Something went wrong")
             if pck['type'] == 'NETWORK_REPLY':  # it becomes cluster head and send join reply to the candidates
                 self.set_role(Roles.CLUSTER_HEAD)
+                #self.tx_current = 
+                #self.tx_range = 
                 check_all_nodes_registered()
                 try:
                     write_clusterhead_distances_csv("clusterhead_distances.csv")
@@ -793,7 +795,7 @@ def create_network(node_class, number_of_nodes=100):
         py = 200 + config.SCALE* y * config.SIM_NODE_PLACING_CELL_SIZE + random.uniform(-1 * config.SIM_NODE_PLACING_CELL_SIZE / 3, config.SIM_NODE_PLACING_CELL_SIZE / 3)
         node = sim.add_node(node_class, (px, py))
         NODE_POS[node.id] = (px, py)   # <— add this line
-        node.tx_range = config.NODE_TX_RANGE * config.SCALE
+        node.tx_range = config.NODE_TX_RANGES[config.NODE_DEFAULT_TX_POWER] * config.SCALE
         node.logging = True
         node.arrival = random.uniform(0, config.NODE_ARRIVAL_MAX)
         if node.id == ROOT_ID:

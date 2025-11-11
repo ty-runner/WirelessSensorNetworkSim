@@ -6,11 +6,18 @@ TOTAL_BITS = 16
 
 
 ## node properties
-NODE_TX_RANGE = 100  # transmission range of nodes
+NODE_DEFAULT_TX_POWER = "0 dBm"
+TX_POWER_LEVELS = ["-25 dBm", "-15 dBm", "-10 dBm", "-5 dBm", "0 dBm"]
+NODE_TX_RANGES = {"-25 dBm": 5, "-15 dBm": 25, "-10 dBm": 50, "-5 dBm": 75, "0 dBm": 100} #TX range of nodes in meters
 NODE_ARRIVAL_MAX = 200  # max time to wake up
-NODE_LOSS_CHANCE = 0.05 #percentage points, i.e 10 = 10%
+NODE_LOSS_CHANCE = 0.02 #percentage points, i.e 10 = 10%
 
-
+##Radio properties, CC2420
+DATARATE = 250000 #data rate, 250kbps
+MTU = 127 + 6 #size of the over the air packet
+VOLTAGE = 3 #volts
+TX_CURRENTS = {"-25 dBm": 8.5, "-15 dBm": 9.9, "-10 dBm": 11, "-5 dBm": 14, "0 dBm": 17.4} #mA
+RX_CURRENT = 18.8 #mA
 ## simulation properties
 SIM_NODE_COUNT = 100  # noce count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 75  # cell size to place one node
