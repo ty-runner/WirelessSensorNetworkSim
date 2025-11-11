@@ -70,7 +70,7 @@ def check_all_nodes_registered():
 
     # Console output
     if not unregistered_nodes:
-        print(f"✅ All {len(ALL_NODES)} nodes are registered. {sim.now}")
+        #print(f"✅ All {len(ALL_NODES)} nodes are registered. {sim.now}")
         return True
     else:
         return False
@@ -132,7 +132,7 @@ class SensorNode(wsn.Node):
         # Called when node successfully registers
         self.registered_time = self.now
         diff = self.registered_time - self.wake_up_time
-        print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
+        #print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
         log_registration_time(self.id, self.wake_up_time, self.registered_time, diff)
 
     def set_role(self, new_role, *, recolor=True):
@@ -533,6 +533,7 @@ class SensorNode(wsn.Node):
 
         if self.role == Roles.UNREGISTERED:  # if the node is unregistered
             if pck['type'] == 'HEART_BEAT':
+                #self.kill_timer('TIMER_PROBE')
                 self.update_neighbor(pck)
             if pck['type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
                 if pck['dest_gui'] == self.id:

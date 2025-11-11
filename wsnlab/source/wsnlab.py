@@ -1,6 +1,8 @@
 """Simulator library for self-organizing ad hoc networks.
 Based on wsnsimpy library. Timers, Network address and Sleep mode are included by Mustafa Tosun.
 """
+import csv
+import os
 
 import bisect
 import inspect
@@ -223,12 +225,17 @@ class Node:
            Returns:
 
         """
+        
         for (dist, node) in self.neighbor_distance_list:
             if dist <= self.tx_range:
                 if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                     if node.can_receive(pck):
                         prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
                         self.delayed_exec(prop_time, node.on_receive_check, pck)
+                else:
+                    if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE":
+                        self.log("PACKET DROPPED")
+                        self.log(pck)
             else:
                 break
 
