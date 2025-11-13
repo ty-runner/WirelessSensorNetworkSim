@@ -132,8 +132,16 @@ class SensorNode(wsn.Node):
         # Called when node successfully registers
         self.registered_time = self.now
         diff = self.registered_time - self.wake_up_time
-        #print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
+        print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
         log_registration_time(self.id, self.wake_up_time, self.registered_time, diff)
+
+    def assign_tx_power(self, power_level=None):
+        if power_level is None:
+            self.tx_power = random.choice(config.TX_POWER_LEVELS)
+        else:
+            self.tx_power = power_level
+        self.tx_range = config.NODE_TX_RANGES[self.tx_power] * config.SCALE
+        self.draw_tx_range()
 
     def set_role(self, new_role, *, recolor=True):
         """Central place to switch roles, keep tallies, and (optionally) recolor."""
@@ -154,15 +162,16 @@ class SensorNode(wsn.Node):
                 self.scene.nodecolor(self.id, 0, 1, 0)
             elif new_role == Roles.CLUSTER_HEAD:
                 self.scene.nodecolor(self.id, 0, 0, 1)
+                if config.ALLOW_TX_POWER_CHOICE:
+                    self.assign_tx_power()
+                else:
+                    self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
                 self.draw_tx_range()
             elif new_role == Roles.ROOT:
                 self.scene.nodecolor(self.id, 0, 0, 0)
+                self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
                 self.set_timer('TIMER_EXPORT_CH_CSV', config.EXPORT_CH_CSV_INTERVAL)
                 self.set_timer('TIMER_EXPORT_NEIGHBOR_CSV', config.EXPORT_NEIGHBOR_CSV_INTERVAL)
-
-
-
-
     
     def become_unregistered(self):
         if self.role != Roles.UNDISCOVERED:
@@ -184,7 +193,7 @@ class SensorNode(wsn.Node):
         self.members_table = []
         self.received_JR_guis = []  # keeps received Join Request global unique ids
         self.send_probe()
-        self.set_timer('TIMER_JOIN_REQUEST', 20)
+        self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
 
     ###################
     def update_neighbor(self, pck):
@@ -252,6 +261,7 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.log("sending JR")
         self.send({'dest': dest, 'type': 'JOIN_REQUEST', 'gui': self.id})
 
     ###################
@@ -266,8 +276,9 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.log(self.tx_power)
         self.send({'dest': wsn.BROADCAST_ADDR, 'type': 'JOIN_REPLY', 'source': self.ch_addr,
-                   'gui': self.id, 'dest_gui': gui, 'addr': addr, 'root_addr': self.root_addr,
+                   'gui': self.id, 'dest_gui': gui, 'addr': addr, 'root_addr': self.root_addr, 'tx_power': self.tx_power,
                    'hop_count': self.hop_count+1})
 
     ###################
@@ -437,12 +448,14 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it waits and sends join reply message once received join request
                 # yield self.timeout(.5)
+                avail_node_id = None
                 for node_id, avail in self.node_available_dict.items():
                     if avail is None or avail == pck['gui']:
                         avail_node_id = node_id
                         break
-                self.node_available_dict[avail_node_id] = pck['gui'] #this network is now being used
-                self.send_join_reply(pck['gui'], wsn.Addr(self.ch_addr.net_addr, avail_node_id))
+                if avail_node_id is not None:
+                    self.node_available_dict[avail_node_id] = pck['gui'] #this network is now being used
+                    self.send_join_reply(pck['gui'], wsn.Addr(self.ch_addr.net_addr, avail_node_id))
             if pck['type'] == 'NETWORK_REQUEST':  # it sends a network reply to requested node
                 # yield self.timeout(.5)
                 if self.role == Roles.ROOT:
@@ -504,8 +517,6 @@ class SensorNode(wsn.Node):
                             raise Exception("Something went wrong")
             if pck['type'] == 'NETWORK_REPLY':  # it becomes cluster head and send join reply to the candidates
                 self.set_role(Roles.CLUSTER_HEAD)
-                #self.tx_current = 
-                #self.tx_range = 
                 check_all_nodes_registered()
                 try:
                     write_clusterhead_distances_csv("clusterhead_distances.csv")
@@ -520,12 +531,14 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
                 for gui in self.received_JR_guis:
                     # yield self.timeout(random.uniform(.1,.5))
+                    avail_node_id = None
                     for node_id, avail in self.node_available_dict.items():
                         if avail is None or avail == gui:
                             avail_node_id = node_id
                             break
-                    self.node_available_dict[avail_node_id] = gui#this network is now being used
-                    self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
+                    if avail_node_id is not None:
+                        self.node_available_dict[avail_node_id] = gui#this network is now being used
+                        self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
 
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
             if pck['type'] == 'HEART_BEAT':  # it kills probe timer, becomes unregistered and sets join request timer once received heart beat
@@ -535,7 +548,8 @@ class SensorNode(wsn.Node):
 
         if self.role == Roles.UNREGISTERED:  # if the node is unregistered
             if pck['type'] == 'HEART_BEAT':
-                #self.kill_timer('TIMER_PROBE')
+                self.log("HEARTBEAT")
+                self.log(pck)
                 self.update_neighbor(pck)
             if pck['type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
                 if pck['dest_gui'] == self.id:
@@ -543,6 +557,7 @@ class SensorNode(wsn.Node):
                     self.parent_gui = pck['gui']
                     self.root_addr = pck['root_addr']
                     self.hop_count = pck['hop_count']
+                    self.assign_tx_power(pck['tx_power'])
                     self.draw_parent()
                     self.kill_timer('TIMER_JOIN_REQUEST')
                     self.send_heart_beat()
@@ -615,6 +630,7 @@ class SensorNode(wsn.Node):
         #        self.send_network_request()
         #        self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
+            self.log("TIMER JOIN REQ")
             if len(self.candidate_parents_table) == 0:
                 self.become_unregistered()
             else:  # otherwise it chose one of them and sends join request

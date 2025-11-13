@@ -10,7 +10,7 @@ NODE_DEFAULT_TX_POWER = "0 dBm"
 TX_POWER_LEVELS = ["-25 dBm", "-15 dBm", "-10 dBm", "-5 dBm", "0 dBm"]
 NODE_TX_RANGES = {"-25 dBm": 5, "-15 dBm": 25, "-10 dBm": 50, "-5 dBm": 75, "0 dBm": 100} #TX range of nodes in meters
 NODE_ARRIVAL_MAX = 200  # max time to wake up
-NODE_LOSS_CHANCE = 0.02 #percentage points, i.e 10 = 10%
+NODE_LOSS_CHANCE = 0.0 #percentage points, i.e 10 = 10%
 
 ##Radio properties, CC2420
 DATARATE = 250000 #data rate, 250kbps
@@ -28,11 +28,12 @@ SIM_TITLE = 'Data Collection Tree'  # title of visualization window
 SIM_VISUALIZATION = True  # visualization active
 SCALE = 1  # scale factor for visualization
 VIS = 0 #0 for no viz, 1 for viz
-SEED = 1 #seed for reproducibility 
+SEED = 0 #seed for reproducibility 
 NUM_OF_CHILDREN = 253 #num of children a given cluster head can have, must be 2^N - 3
 bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
 bits_cluster = TOTAL_BITS - bits_child
 NUM_OF_CLUSTERS = (1 << bits_cluster) - 1
+ALLOW_TX_POWER_CHOICE = 1
 
 ## application properties
 SLEEP_MODE_PROBE_TIME_INTERVAL = 30
