@@ -152,10 +152,10 @@ class SensorNode(wsn.Node):
                 dist_diff.append(diff)
 
             # find the index of the smallest *positive* distance difference
-            positive_diffs = [(i, d) for i, d in enumerate(dist_diff) if d > 0]
+            negative_diffs = [(i, d) for i, d in enumerate(dist_diff) if d < 0]
 
-            if positive_diffs:
-                dist_diff_idx, _ = min(positive_diffs, key=lambda x: x[1])
+            if negative_diffs:
+                dist_diff_idx, _ = max(negative_diffs, key=lambda x: x[1])
             else:
                 # fallback if no positive diffs — pick the smallest absolute diff
                 dist_diff_idx = min(range(len(dist_diff)), key=lambda i: abs(dist_diff[i]))
@@ -165,7 +165,7 @@ class SensorNode(wsn.Node):
         else:
             self.tx_power = power_level
         self.tx_range = config.NODE_TX_RANGES[self.tx_power] * config.SCALE
-        self.draw_tx_range()
+        #self.draw_tx_range()
 
     def set_role(self, new_role, *, recolor=True):
         """Central place to switch roles, keep tallies, and (optionally) recolor."""
@@ -221,6 +221,7 @@ class SensorNode(wsn.Node):
 
     ###################
     def update_neighbor(self, pck):
+        pck = pck.copy()
         pck['arrival_time'] = self.now
         # compute Euclidean distance between self and neighbor
         if pck['gui'] in NODE_POS and self.id in NODE_POS:
@@ -574,8 +575,8 @@ class SensorNode(wsn.Node):
 
         if self.role == Roles.UNREGISTERED:  # if the node is unregistered
             if pck['type'] == 'HEART_BEAT':
-                self.log("HEARTBEAT")
-                self.log(pck)
+                #self.log("HEARTBEAT")
+                #self.log(pck)
                 self.update_neighbor(pck)
             if pck['type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
                 if pck['dest_gui'] == self.id:
