@@ -137,7 +137,31 @@ class SensorNode(wsn.Node):
 
     def assign_tx_power(self, power_level=None):
         if power_level is None:
-            self.tx_power = random.choice(config.TX_POWER_LEVELS)
+            #this should not be a fully random choice, we need to pick ranges that the node can still reach its parent
+            self.log(self.candidate_parents_table)
+            parent = next( #search for parent details, we want distance
+                (d for d in self.candidate_parents_table if d.get('gui') == self.parent_gui),
+                None
+            )
+            self.log(parent['distance'])
+            #we choose our power based on distance to parent
+            dist_diff = []
+
+            for range_val in config.NODE_TX_RANGES.values():
+                diff = parent['distance'] - range_val
+                dist_diff.append(diff)
+
+            # find the index of the smallest *positive* distance difference
+            positive_diffs = [(i, d) for i, d in enumerate(dist_diff) if d > 0]
+
+            if positive_diffs:
+                dist_diff_idx, _ = min(positive_diffs, key=lambda x: x[1])
+            else:
+                # fallback if no positive diffs — pick the smallest absolute diff
+                dist_diff_idx = min(range(len(dist_diff)), key=lambda i: abs(dist_diff[i]))
+
+            self.tx_power = config.TX_POWER_LEVELS[dist_diff_idx]
+
         else:
             self.tx_power = power_level
         self.tx_range = config.NODE_TX_RANGES[self.tx_power] * config.SCALE
@@ -207,14 +231,16 @@ class SensorNode(wsn.Node):
         self.neighbors_table[pck['gui']] = pck
 
         if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
-            if pck['gui'] not in self.candidate_parents_table:
-                self.candidate_parents_table.append(pck['gui'])
+            if not any(d['gui'] == pck['gui'] for d in self.candidate_parents_table):
+                self.candidate_parents_table.append(pck)
+
 
     ###################
     def select_and_join(self):
         min_hop = 99999
         min_hop_gui = 99999
         for gui in self.candidate_parents_table:
+            gui = gui['gui'] #we are now passing in the full packet
             if self.neighbors_table[gui]['hop_count'] < min_hop or (self.neighbors_table[gui]['hop_count'] == min_hop and gui < min_hop_gui):
                 min_hop = self.neighbors_table[gui]['hop_count']
                 min_hop_gui = gui
