@@ -464,6 +464,7 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.power -= ((config.RX_CURRENT * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
         if self.role == Roles.ROOT or self.role == Roles.CLUSTER_HEAD:  # if the node is root or cluster head
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)

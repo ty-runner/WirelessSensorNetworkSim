@@ -230,7 +230,7 @@ class Node:
         
         for (dist, node) in self.neighbor_distance_list:
             if dist <= self.tx_range:
-                self.power -= (1000*self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 10 #+10 microjoules for overhead
+                self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
                 if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                     if node.can_receive(pck):
                         prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
