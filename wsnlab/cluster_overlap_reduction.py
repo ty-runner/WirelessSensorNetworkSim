@@ -21,7 +21,7 @@ def _addr_str(a): return "" if a is None else str(a)
 def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
 
-Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD')
+Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER')
 """Enumeration of roles"""
 def log_all_nodes_registered():
     """Log every node's status and role to topology.csv and check if all are registered."""
@@ -225,7 +225,12 @@ class SensorNode(wsn.Node):
         self.received_JR_guis = []  # keeps received Join Request global unique ids
         self.send_probe()
         self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
-
+    ###################
+    def become_router(self):
+        #what does a router need?
+        #needs a routing table
+        #the router will essentially be a bridge between 2 CH's
+        self.set_role(Roles.ROUTER)
     ###################
     def update_neighbor(self, pck):
         pck = pck.copy()
@@ -539,6 +544,8 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
                 self.received_JR_guis.append(pck['gui'])
                 # yield self.timeout(.5)
+                #if a router isn't immediately up the chain, become router
+                #self.become_router()
                 self.send_network_request() #this is getting spammed
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
@@ -614,7 +621,10 @@ class SensorNode(wsn.Node):
                     # timer_duration =  self.id % 20
                     # if timer_duration == 0: timer_duration = 1
                     # self.set_timer('TIMER_SENSOR', timer_duration)
-
+        elif self.role == Roles.ROUTER:  # if the node is registered
+            if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
+                self.route_and_forward_package(pck)
+                return
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
         """Executes when a timer fired.
