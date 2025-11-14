@@ -39,7 +39,7 @@ def log_all_nodes_registered():
             position = getattr(node, "pos", None)
             writer.writerow([node.id, position, role])
 
-            if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT}:
+            if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT, Roles.ROUTER}:
                 unregistered_nodes.append(node.id)
 
     # Console output
@@ -109,11 +109,13 @@ class SensorNode(wsn.Node):
         self.c_probe = 0  # c means counter and probe is the name of counter
         self.th_probe = 10  # th means threshold and probe is the name of threshold
         self.hop_count = 99999
+        self.jr_threshold = 5
         self.neighbors_table = {}  # keeps neighbor information with received HB messages
         self.candidate_parents_table = []
         self.child_networks_table = {}
         self.members_table = []
         self.net_req_flag = None
+        self.join_req_attempts = {}
         self.received_JR_guis = []  # keeps received Join Request global unique ids
         ALL_NODES.append(self)
     ###################
@@ -231,6 +233,16 @@ class SensorNode(wsn.Node):
         #needs a routing table
         #the router will essentially be a bridge between 2 CH's
         self.set_role(Roles.ROUTER)
+
+    ###################
+    def check_to_become_router(self):
+        ch_count = 0
+        self.log(self.neighbors_table)
+        for n in self.neighbors_table.values(): #check_to_become_router() logic
+            if n['role'] == Roles.CLUSTER_HEAD:
+                ch_count+=1
+        if ch_count >=2:
+            self.become_router()
     ###################
     def update_neighbor(self, pck):
         pck = pck.copy()
@@ -243,9 +255,24 @@ class SensorNode(wsn.Node):
         pck['neighbor_hop_count'] = 1
         self.neighbors_table[pck['gui']] = pck
 
+        #if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
+        #    if not any(d['gui'] == pck['gui'] for d in self.candidate_parents_table):
+        #        self.candidate_parents_table.append(pck)
+        # Step 1: skip if child or already a member
         if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
-            if not any(d['gui'] == pck['gui'] for d in self.candidate_parents_table):
+
+            # Step 2: find existing candidate parent with same GUI
+            existing = next((d for d in self.candidate_parents_table if d['gui'] == pck['gui']), None)
+
+            if existing:
+                # Step 3: replace only if arrival_time is newer
+                if pck['arrival_time'] > existing['arrival_time']:
+                    self.candidate_parents_table.remove(existing)
+                    self.candidate_parents_table.append(pck)
+            else:
+                # Step 4: didn’t exist → add it
                 self.candidate_parents_table.append(pck)
+
 
 
     ###################
@@ -254,9 +281,13 @@ class SensorNode(wsn.Node):
         min_hop_gui = 99999
         for gui in self.candidate_parents_table:
             gui = gui['gui'] #we are now passing in the full packet
+            attempts = self.join_req_attempts.get(gui, 0)
+            if attempts >= self.jr_threshold:
+                continue
             if self.neighbors_table[gui]['hop_count'] < min_hop or (self.neighbors_table[gui]['hop_count'] == min_hop and gui < min_hop_gui):
                 min_hop = self.neighbors_table[gui]['hop_count']
                 min_hop_gui = gui
+        self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
         selected_addr = self.neighbors_table[min_hop_gui]['source']
         self.send_join_request(selected_addr)
         self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
@@ -532,7 +563,10 @@ class SensorNode(wsn.Node):
                 pass
                 # self.log(str(pck['source'])+'--'+str(pck['sensor_value']))
 
-        elif self.role == Roles.REGISTERED:  # if the node is registered
+        elif self.role == Roles.REGISTERED or self.role == Roles.ROUTER:  # if the node is registered
+            #check to see if we have 2 clusterheads present in our neighbor table, IMMEDIATE NEIGHBORS
+            if self.role == Roles.REGISTERED:
+                self.check_to_become_router()
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)
                 return
@@ -621,10 +655,16 @@ class SensorNode(wsn.Node):
                     # timer_duration =  self.id % 20
                     # if timer_duration == 0: timer_duration = 1
                     # self.set_timer('TIMER_SENSOR', timer_duration)
-        elif self.role == Roles.ROUTER:  # if the node is registered
-            if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
-                self.route_and_forward_package(pck)
-                return
+        #elif self.role == Roles.ROUTER:  # if the node is registered
+        #    if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
+        #        self.route_and_forward_package(pck)
+        #        return
+        #    if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
+        #        self.received_JR_guis.append(pck['gui'])
+        #        # yield self.timeout(.5)
+        #        #if a router isn't immediately up the chain, become router
+        #        #self.become_router()
+        #        self.send_network_request() #this is getting spammed
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
         """Executes when a timer fired.

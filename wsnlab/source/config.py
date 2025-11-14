@@ -33,7 +33,7 @@ NUM_OF_CHILDREN = 253 #num of children a given cluster head can have, must be 2^
 bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
 bits_cluster = TOTAL_BITS - bits_child
 NUM_OF_CLUSTERS = (1 << bits_cluster) - 1
-ALLOW_TX_POWER_CHOICE = 1
+ALLOW_TX_POWER_CHOICE = 0 #1 for smart choice, 0 for default across all
 
 ## application properties
 SLEEP_MODE_PROBE_TIME_INTERVAL = 30
