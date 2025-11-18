@@ -233,6 +233,21 @@ class Node:
                 self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
                 if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                     if node.can_receive(pck):
+                        if pck['dest'] != Addr(255,255):
+                            src = pck.get('source')
+                            if src is None:
+                                src = pck['gui']
+                            else:
+                                src = (pck['source'].net_addr, pck['source'].node_addr)
+                            dest = (pck['dest'].net_addr, pck['dest'].node_addr)
+                            pck_id = (src, dest)
+                            
+                            self.sim.packet_log[pck_id] = {
+                                'created_at': self.now,
+                                'source': self.id,
+                                'received_at': []
+                            }
+                        #self.delayed_exec(config.TRANSMISSION_TIME, node.on_receive_check, pck) #emulate transmission time delay
                         prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
                         self.delayed_exec(prop_time, node.on_receive_check, pck)
                 else:
@@ -352,7 +367,16 @@ class Node:
 
         """
         if not self.is_sleep:
-            self.delayed_exec(0.00001, self.on_receive, pck)
+            if pck['dest'] != Addr(255,255):
+                src = pck.get('source')
+                if src is None:
+                    src = pck['gui']
+                else:
+                    src = (pck['source'].net_addr, pck['source'].node_addr)
+                dest = (pck['dest'].net_addr, pck['dest'].node_addr)
+                pck_id = (src, dest)
+                self.sim.packet_log[pck_id]['received_at'].append(self.now)
+            self.delayed_exec(config.PROCESSING_TIME, self.on_receive, pck) #processing delay
 
     ############################
     def on_timer_fired(self, name, *args, **kwargs):
@@ -443,6 +467,7 @@ class Simulator:
         """
         self.env = simpy.rt.RealtimeEnvironment(factor=timescale, strict=False)
         self.nodes = []
+        self.packet_log = {}
         self.duration = duration
         self.timescale = timescale
         self.random = random.Random(seed)

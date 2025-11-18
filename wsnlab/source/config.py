@@ -18,6 +18,7 @@ MTU = 127 + 6 #size of the over the air packet
 VOLTAGE = 3 #volts
 TX_CURRENTS = {"-25 dBm": 8.5, "-15 dBm": 9.9, "-10 dBm": 11, "-5 dBm": 14, "0 dBm": 17.4} #mA
 RX_CURRENT = 18.8 #mA
+
 ## simulation properties
 SIM_NODE_COUNT = 100  # noce count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 75  # cell size to place one node
@@ -34,7 +35,8 @@ bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
 bits_cluster = TOTAL_BITS - bits_child
 NUM_OF_CLUSTERS = (1 << bits_cluster) - 1
 ALLOW_TX_POWER_CHOICE = 0 #1 for smart choice, 0 for default across all
-
+TRANSMISSION_TIME = 0.00000005 #seconds, 133 * 8 / tx_rate = 4.256 ms round up to 5 ms
+PROCESSING_TIME = 0.000001 #seconds, research for CC2420 was around a mean of 1 ms. HAD TO SCALE THESE VALUES DOWN FOR SAKE OF THE SIMULATION
 ## application properties
 SLEEP_MODE_PROBE_TIME_INTERVAL = 30
 HEART_BEAT_TIME_INTERVAL = 1

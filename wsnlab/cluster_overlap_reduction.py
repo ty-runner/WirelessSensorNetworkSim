@@ -52,6 +52,36 @@ def log_all_nodes_registered():
 with open("registration_log.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["node_id", "start_time", "registered_time", "delta_time"])
+def log_all_packets(packet_log, filename="packet_log.csv"):
+    """
+    Writes all packet creation and reception times to a CSV file.
+
+    Args:
+        packet_log (dict): Dictionary of packet data from the simulator.
+            Format:
+                packet_id -> {
+                    'created_at': float,
+                    'source': int,
+                    'received_at': [float, ...]
+                }
+        filename (str): Name of the CSV file to write.
+    """
+    with open(filename, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["packet_id", "source_node", "created_at", "received_at", "delay"])
+
+        for pck_id, entry in packet_log.items():
+            created_at = entry['created_at']
+            source = entry['source']
+            received_list = entry['received_at']
+
+            if not received_list:
+                writer.writerow([pck_id, source, created_at, "", ""])
+            else:
+                for recv_time in received_list:
+                    delay = recv_time - created_at
+                    writer.writerow([pck_id, source, created_at, recv_time, delay])
+
 def log_registration_time(node_id, start_time, registered_time, diff):
     with open("registration_log.csv", "a", newline="") as f:
         writer = csv.writer(f)
@@ -919,6 +949,7 @@ write_node_distance_matrix_csv("node_distance_matrix.csv")
 # start the simulation
 sim.run()
 log_all_nodes_registered()
+log_all_packets(sim.packet_log)
 print("Simulation Finished")
 
 
