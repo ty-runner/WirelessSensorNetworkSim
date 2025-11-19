@@ -368,14 +368,15 @@ class Node:
         """
         if not self.is_sleep:
             if pck['dest'] != Addr(255,255):
-                src = pck.get('source')
-                if src is None:
-                    src = pck['gui']
-                else:
-                    src = (pck['source'].net_addr, pck['source'].node_addr)
-                dest = (pck['dest'].net_addr, pck['dest'].node_addr)
-                pck_id = (src, dest)
-                self.sim.packet_log[pck_id]['received_at'].append(self.now)
+                if pck['dest'] == self.addr:
+                    src = pck.get('source')
+                    if src is None:
+                        src = pck['gui']
+                    else:
+                        src = (pck['source'].net_addr, pck['source'].node_addr)
+                    dest = (pck['dest'].net_addr, pck['dest'].node_addr)
+                    pck_id = (src, dest)
+                    self.sim.packet_log[pck_id]['received_at'].append(self.now)
             self.delayed_exec(config.PROCESSING_TIME, self.on_receive, pck) #processing delay
 
     ############################
