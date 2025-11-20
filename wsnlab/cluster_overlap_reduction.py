@@ -12,6 +12,7 @@ random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
 NODE_POS = {}  # {node_id: (x, y)}
 
+NODES_REGISTERED = 0 #global var
 # --- tracking containers ---
 ALL_NODES = []              # node objects
 CLUSTER_HEADS = []
@@ -164,18 +165,20 @@ class SensorNode(wsn.Node):
         # Called when node successfully registers
         self.registered_time = self.now
         diff = self.registered_time - self.wake_up_time
-        print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
+        #print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
+        global NODES_REGISTERED
+        NODES_REGISTERED += 1
+        if NODES_REGISTERED == len(ALL_NODES)-1:
+            log_all_nodes_registered()
         log_registration_time(self.id, self.wake_up_time, self.registered_time, diff)
 
     def assign_tx_power(self, power_level=None):
         if power_level is None:
             #this should not be a fully random choice, we need to pick ranges that the node can still reach its parent
-            self.log(self.candidate_parents_table)
             parent = next( #search for parent details, we want distance
                 (d for d in self.candidate_parents_table if d.get('gui') == self.parent_gui),
                 None
             )
-            self.log(parent['distance'])
             #we choose our power based on distance to parent
             dist_diff = []
 
@@ -265,15 +268,6 @@ class SensorNode(wsn.Node):
         self.set_role(Roles.ROUTER)
 
     ###################
-    def check_to_become_router(self):
-        ch_count = 0
-        self.log(self.neighbors_table)
-        for n in self.neighbors_table.values(): #check_to_become_router() logic
-            if n['role'] == Roles.CLUSTER_HEAD:
-                ch_count+=1
-        if ch_count >=2:
-            self.become_router()
-    ###################
     def update_neighbor(self, pck):
         pck = pck.copy()
         pck['arrival_time'] = self.now
@@ -361,7 +355,6 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.log("sending JR")
         self.send({'dest': dest, 'type': 'JOIN_REQUEST', 'gui': self.id})
 
     ###################
@@ -376,7 +369,6 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.log(self.tx_power)
         self.send({'dest': wsn.BROADCAST_ADDR, 'type': 'JOIN_REPLY', 'source': self.ch_addr,
                    'gui': self.id, 'dest_gui': gui, 'addr': addr, 'root_addr': self.root_addr, 'tx_power': self.tx_power,
                    'hop_count': self.hop_count+1})
@@ -528,6 +520,10 @@ class SensorNode(wsn.Node):
                 self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
                         'gui': self.id, 'neighbors': mesh_neighbors})
 
+    def send_ch_nomination(self):
+        #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
+        for node in self.members_table:
+            self.log(node)
     ###################
     def on_receive(self, pck):
         """Executes when a package received.
@@ -565,10 +561,6 @@ class SensorNode(wsn.Node):
                         if avail is None or avail == pck['source']:
                             avail_net_id = net_id
                             break
-                    if avail_net_id is None:
-                        print("BUG")
-                        print(self.net_id_available_dict)
-                        self.log(pck)
                     new_addr = wsn.Addr(avail_net_id,254)
                     self.net_id_available_dict[avail_net_id] = pck['source'] #this network is now being used
                     self.send_network_reply(pck['source'],new_addr)
@@ -595,8 +587,6 @@ class SensorNode(wsn.Node):
 
         elif self.role == Roles.REGISTERED or self.role == Roles.ROUTER:  # if the node is registered
             #check to see if we have 2 clusterheads present in our neighbor table, IMMEDIATE NEIGHBORS
-            if self.role == Roles.REGISTERED:
-                self.check_to_become_router()
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)
                 return
@@ -607,9 +597,11 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
                 self.received_JR_guis.append(pck['gui'])
-                # yield self.timeout(.5)
-                #if a router isn't immediately up the chain, become router
-                #self.become_router()
+                #if we hear a join request as a registered node, we want to become a clusterhead, let that node join, then transfer ownership to that node
+                #1. become CH
+                #2. register requesting node
+                #3. move ch role to registered node -> ACK
+                #4. change role from CH to router
                 self.send_network_request() #this is getting spammed
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
@@ -645,6 +637,7 @@ class SensorNode(wsn.Node):
                     if avail_node_id is not None:
                         self.node_available_dict[avail_node_id] = gui#this network is now being used
                         self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
+                self.send_ch_nomination()
 
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
             if pck['type'] == 'HEART_BEAT':  # it kills probe timer, becomes unregistered and sets join request timer once received heart beat
@@ -745,7 +738,7 @@ class SensorNode(wsn.Node):
         #        self.send_network_request()
         #        self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
-            self.log("TIMER JOIN REQ")
+            #self.log("TIMER JOIN REQ")
             if len(self.candidate_parents_table) == 0:
                 self.become_unregistered()
             else:  # otherwise it chose one of them and sends join request
@@ -948,7 +941,6 @@ write_node_distance_matrix_csv("node_distance_matrix.csv")
 
 # start the simulation
 sim.run()
-log_all_nodes_registered()
 log_all_packets(sim.packet_log)
 print("Simulation Finished")
 
