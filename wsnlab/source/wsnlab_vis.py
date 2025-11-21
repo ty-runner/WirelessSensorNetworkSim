@@ -122,17 +122,27 @@ class Node(wsnlab.Node):
 
 
     def draw_tx_range(self):
-        """Draws transmission range of the node.
+        # always use a fixed ID per node
+        tx_id = f"tx_{self.id}"
+        
+        # remove old one if exists
+        self.scene.delshape(tx_id)
 
-           Args:
+        # draw new one
+        self.tx_range_obj = tx_id
+        self.scene.circle(
+            self.pos[0],
+            self.pos[1],
+            self.tx_range,
+            id=tx_id,                # <-- FIXED HERE
+            line="wsnsimpy:tx"
+        )
 
-           Returns:
 
-        """
-        obj_id =self.scene.circle(self.pos[0], self.pos[1], self.tx_range, line="wsnsimpy:tx")
-        #self.delayed_exec(0.2, self.scene.delshape, obj_id)
-
-
+    def remove_tx_range(self):
+        if hasattr(self, "tx_range_obj"):
+            self.scene.delshape(self.tx_range_obj)
+            self.tx_range_obj = None
 
     def move(self, x, y):
         """Visualise move process in addition to base move method.

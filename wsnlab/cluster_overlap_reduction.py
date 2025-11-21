@@ -266,6 +266,7 @@ class SensorNode(wsn.Node):
         #needs a routing table
         #the router will essentially be a bridge between 2 CH's
         self.set_role(Roles.ROUTER)
+        self.remove_tx_range()
 
     ###################
     def update_neighbor(self, pck):
@@ -531,8 +532,10 @@ class SensorNode(wsn.Node):
                 if member == src:
                     # FOUND MATCH
                     distance = neigh['distance']
-                    print(f"Neighbor {gui} matches member addr {src} with distance {distance}")
-                    break
+                    print(f"Neighbor {gui} matches member addr {src} with distance {distance}, CH addr = {self.ch_addr}")
+                    self.send_network_reply(src,self.ch_addr)
+                    self.become_router()
+                    #break
             else:
                 # no break → no match
                 print(f"No matching member found for neighbor {gui} with source {src}")
@@ -579,7 +582,8 @@ class SensorNode(wsn.Node):
                     self.send_network_reply(pck['source'],new_addr)
             if pck['type'] == 'JOIN_ACK':
                 self.members_table.append(pck['source'])
-                self.send_ch_nomination()
+                if self.role == Roles.CLUSTER_HEAD:
+                    self.send_ch_nomination()
             if pck['type'] == 'NETWORK_UPDATE':
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 if self.role != Roles.ROOT:
