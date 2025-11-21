@@ -522,8 +522,21 @@ class SensorNode(wsn.Node):
 
     def send_ch_nomination(self):
         #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
-        for node in self.members_table:
-            self.log(node)
+        #we can only get the distance data from our neighbor table as those have the distance
+        for gui, neigh in self.neighbors_table.items():
+            src = neigh['source']   # something like [5, 3]
+
+            # search members_table for matching addr
+            for member in self.members_table:
+                if member == src:
+                    # FOUND MATCH
+                    distance = neigh['distance']
+                    print(f"Neighbor {gui} matches member addr {src} with distance {distance}")
+                    break
+            else:
+                # no break → no match
+                print(f"No matching member found for neighbor {gui} with source {src}")
+
     ###################
     def on_receive(self, pck):
         """Executes when a package received.
@@ -566,6 +579,7 @@ class SensorNode(wsn.Node):
                     self.send_network_reply(pck['source'],new_addr)
             if pck['type'] == 'JOIN_ACK':
                 self.members_table.append(pck['source'])
+                self.send_ch_nomination()
             if pck['type'] == 'NETWORK_UPDATE':
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 if self.role != Roles.ROOT:
