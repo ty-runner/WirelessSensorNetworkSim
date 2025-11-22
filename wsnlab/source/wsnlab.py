@@ -368,7 +368,7 @@ class Node:
         """
         if not self.is_sleep:
             if pck['dest'] != Addr(255,255):
-                if pck['dest'] == self.addr:
+                if pck['dest'] == self.addr or pck['dest'] == self.ch_addr:
                     src = pck.get('source')
                     if src is None:
                         src = pck['gui']

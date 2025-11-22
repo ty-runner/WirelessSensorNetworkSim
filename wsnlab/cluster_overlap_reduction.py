@@ -267,7 +267,47 @@ class SensorNode(wsn.Node):
         #the router will essentially be a bridge between 2 CH's
         self.set_role(Roles.ROUTER)
         self.remove_tx_range()
+        self.ch_addr = None
+        
+    def become_ch_and_transfer(self, pck):
+        #if we hear a join request as a registered node, we want to become a clusterhead, let that node join, then transfer ownership to that node
+        #1. become CH
+        #2. register requesting node
+        #3. move ch role to registered node -> ACK
+        #4. change role from CH to router
+        self.send_network_request()
+        self.log(self.role)
+        self.send_ch_nomination()
 
+    def send_ch_nomination(self):
+        #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
+        #we can only get the distance data from our neighbor table as those have the distance
+        candidates = {}
+        for gui, neigh in self.neighbors_table.items():
+            src = neigh['source']   # something like [5, 3]
+
+            # search members_table for matching addr
+            for member in self.members_table:
+                if member == src:
+                    # FOUND MATCH
+                    distance = neigh['distance']
+                    print(f"Neighbor {gui} matches member addr {src} with distance {distance}, CH addr = {self.ch_addr}")
+                    candidates[(src.net_addr, src.node_addr)] = distance
+                    break
+            else:
+                # no break → no match
+                print(f"No matching member found for neighbor {gui} with source {src}")
+        if candidates:
+            best_src = max(candidates, key=candidates.get)
+            self.log("candidate chosen")
+            self.log(best_src)
+            self.ch_nominee = best_src
+            self.awaiting_ack = True
+            self.send({'dest': wsn.Addr(best_src[0], best_src[1]), 'type': 'CH_NOMINATION', 'source': self.addr, 'addr': self.ch_addr})
+            #self.become_router()
+    def send_ch_nom_ack(self, pck):
+        self.log("SENDING NOM ACK")
+        self.send({'dest': pck['source'], 'type': 'CH_NOMINATION_ACK', 'source': self.addr})
     ###################
     def update_neighbor(self, pck):
         pck = pck.copy()
@@ -479,8 +519,15 @@ class SensorNode(wsn.Node):
         child_networks = [self.ch_addr.net_addr]
         for networks in self.child_networks_table.values():
             child_networks.extend(networks)
-
-        self.send({'dest': self.neighbors_table[self.parent_gui]['ch_addr'], 'type': 'NETWORK_UPDATE', 'source': self.addr,
+        self.log(self.neighbors_table)
+        self.log(self.parent_gui)
+        if self.neighbors_table[self.parent_gui]['ch_addr'] is None:
+            dest = self.neighbors_table[self.parent_gui]['source']
+        else:
+            dest = self.neighbors_table[self.parent_gui]['ch_addr']
+        #dest = self.neighbors_table[self.parent_gui]['ch_addr']
+        self.log(dest)
+        self.send({'dest': dest, 'type': 'NETWORK_UPDATE', 'source': self.addr,
                    'gui': self.id, 'child_networks': child_networks})
     ###################
     def send_sensor_data(self):
@@ -513,32 +560,13 @@ class SensorNode(wsn.Node):
         #for a N hop mesh routing scheme, share the neighhbors of a node that are N hops away
         mesh_neighbors = {}
         for neighbor,packet in self.neighbors_table.items():
-            if packet['neighbor_hop_count'] == config.MESH_HOP_N:
+            if packet['neighbor_hop_count'] <= config.MESH_HOP_N:
                 mesh_neighbors[neighbor] = packet
                 #collect list of these hop count neighbors, and send to all immediate neighbors
-        for neighbor in self.neighbors_table.values():
-            if neighbor['neighbor_hop_count'] == config.MESH_HOP_N:
+        for neighbor in self.neighbors_table.values(): #only send table to immediate neighbors
+            if neighbor['neighbor_hop_count'] == 1:
                 self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
                         'gui': self.id, 'neighbors': mesh_neighbors})
-
-    def send_ch_nomination(self):
-        #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
-        #we can only get the distance data from our neighbor table as those have the distance
-        for gui, neigh in self.neighbors_table.items():
-            src = neigh['source']   # something like [5, 3]
-
-            # search members_table for matching addr
-            for member in self.members_table:
-                if member == src:
-                    # FOUND MATCH
-                    distance = neigh['distance']
-                    print(f"Neighbor {gui} matches member addr {src} with distance {distance}, CH addr = {self.ch_addr}")
-                    self.send_network_reply(src,self.ch_addr)
-                    self.become_router()
-                    #break
-            else:
-                # no break → no match
-                print(f"No matching member found for neighbor {gui} with source {src}")
 
     ###################
     def on_receive(self, pck):
@@ -584,6 +612,15 @@ class SensorNode(wsn.Node):
                 self.members_table.append(pck['source'])
                 if self.role == Roles.CLUSTER_HEAD:
                     self.send_ch_nomination()
+            if self.role == Roles.CLUSTER_HEAD:
+                if pck['type'] == 'CH_NOMINATION_ACK':
+                    if getattr(self, 'awaiting_ack', False) and getattr(self, 'ch_nominee', None):
+                        # ACK is from the node we nominated
+                        if pck['source'].net_addr == self.ch_nominee[0] and pck['source'].node_addr == self.ch_nominee[1]:
+                            self.log("CH nomination ACK received; becoming router")
+                            self.become_router()
+                            self.awaiting_ack = False
+                            self.ch_nominee = None
             if pck['type'] == 'NETWORK_UPDATE':
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 if self.role != Roles.ROOT:
@@ -603,7 +640,7 @@ class SensorNode(wsn.Node):
                 pass
                 # self.log(str(pck['source'])+'--'+str(pck['sensor_value']))
 
-        elif self.role == Roles.REGISTERED or self.role == Roles.ROUTER:  # if the node is registered
+        elif self.role == Roles.REGISTERED:  # if the node is registered
             #check to see if we have 2 clusterheads present in our neighbor table, IMMEDIATE NEIGHBORS
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)
@@ -615,11 +652,6 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
                 self.received_JR_guis.append(pck['gui'])
-                #if we hear a join request as a registered node, we want to become a clusterhead, let that node join, then transfer ownership to that node
-                #1. become CH
-                #2. register requesting node
-                #3. move ch role to registered node -> ACK
-                #4. change role from CH to router
                 self.send_network_request() #this is getting spammed
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
@@ -638,7 +670,6 @@ class SensorNode(wsn.Node):
                     write_clusterhead_distances_csv("clusterhead_distances.csv")
                 except Exception as e:
                     self.log(f"CH CSV export error: {e}")
-                self.scene.nodecolor(self.id, 0, 0, 1)
                 self.ch_addr = pck['addr']
                 self.send_network_update()
                 self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
@@ -655,8 +686,40 @@ class SensorNode(wsn.Node):
                     if avail_node_id is not None:
                         self.node_available_dict[avail_node_id] = gui#this network is now being used
                         self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
-                self.send_ch_nomination()
+                #self.send_ch_nomination()
 
+            if pck['type'] == 'CH_NOMINATION':
+                self.send_ch_nom_ack(pck)
+                self.set_role(Roles.CLUSTER_HEAD)
+                self.ch_addr = pck['addr']
+                self.send_network_update()
+                self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
+
+        elif self.role == Roles.ROUTER:
+            if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
+                self.route_and_forward_package(pck)
+                return
+            if pck['type'] == 'HEART_BEAT':
+                self.update_neighbor(pck)
+            if pck['type'] == 'PROBE':
+                # yield self.timeout(.5)
+                self.send_heart_beat()
+            if pck['type'] == 'TABLE_SHARE':
+                #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
+                for neighbor, packet in pck['neighbors'].items():
+                    if neighbor not in self.neighbors_table and neighbor != self.id:
+                        cpy = packet.copy()
+                        cpy['neighbor_hop_count'] += 1
+                        cpy['next_hop'] = pck['source']
+                        self.neighbors_table[neighbor] = cpy
+                        if cpy['neighbor_hop_count'] > config.MESH_HOP_N + 1:
+                            raise Exception("Something went wrong")
+            #if pck['type'] == 'CH_NOMINATION':
+            #    self.send_ch_nom_ack(pck)
+            #    self.set_role(Roles.CLUSTER_HEAD)
+            #    self.ch_addr = pck['addr']
+            #    self.send_network_update()
+            #    self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
             if pck['type'] == 'HEART_BEAT':  # it kills probe timer, becomes unregistered and sets join request timer once received heart beat
                 self.update_neighbor(pck)
