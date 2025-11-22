@@ -1,10 +1,10 @@
-For the tx range, we need to have the clusterheads choose a range where they can still talk to their parent, that is the bare minimum
-
-Now that that is in place, when a node chooses a parent to join, it needs to give up on that node after some time and try other if they are avialble
-
-To mimimize cluster overlap, we just want to mimize the number of cluster heads that other clusterheads observe as their neighbors
+The behavior of a registered node should be that if we hear a join request, we make that requested node a CH, reg node becomes a router
 
 Assumptions:
 - routers stay as registered nodes to their originating cluster
 Ongoing metrics:
 - base implementation makes 56 clusters, lets try to minimize this
+
+Things to measure for final report:
+- the more we grow the mesh table, how much more mesh routing do we see?
+- 

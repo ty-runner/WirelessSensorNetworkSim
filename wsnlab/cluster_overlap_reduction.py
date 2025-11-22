@@ -285,7 +285,6 @@ class SensorNode(wsn.Node):
         candidates = {}
         for gui, neigh in self.neighbors_table.items():
             src = neigh['source']   # something like [5, 3]
-
             # search members_table for matching addr
             for member in self.members_table:
                 if member == src:
@@ -344,6 +343,9 @@ class SensorNode(wsn.Node):
     def select_and_join(self):
         min_hop = 99999
         min_hop_gui = 99999
+        self.log("NODE THT FAILED")
+        self.log(self.candidate_parents_table)
+        self.log(self.neighbors_table)
         for gui in self.candidate_parents_table:
             gui = gui['gui'] #we are now passing in the full packet
             attempts = self.join_req_attempts.get(gui, 0)
@@ -352,9 +354,10 @@ class SensorNode(wsn.Node):
             if self.neighbors_table[gui]['hop_count'] < min_hop or (self.neighbors_table[gui]['hop_count'] == min_hop and gui < min_hop_gui):
                 min_hop = self.neighbors_table[gui]['hop_count']
                 min_hop_gui = gui
-        self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
-        selected_addr = self.neighbors_table[min_hop_gui]['source']
-        self.send_join_request(selected_addr)
+        if min_hop_gui < 99999:
+            self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
+            selected_addr = self.neighbors_table[min_hop_gui]['source']
+            self.send_join_request(selected_addr)
         self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
 
 
@@ -686,7 +689,6 @@ class SensorNode(wsn.Node):
                     if avail_node_id is not None:
                         self.node_available_dict[avail_node_id] = gui#this network is now being used
                         self.send_join_reply(gui, wsn.Addr(self.ch_addr.net_addr,avail_node_id))
-                #self.send_ch_nomination()
 
             if pck['type'] == 'CH_NOMINATION':
                 self.send_ch_nom_ack(pck)
@@ -726,7 +728,7 @@ class SensorNode(wsn.Node):
                 self.kill_timer('TIMER_PROBE')
                 self.become_unregistered()
 
-        if self.role == Roles.UNREGISTERED:  # if the node is unregistered
+        elif self.role == Roles.UNREGISTERED:  # if the node is unregistered
             if pck['type'] == 'HEART_BEAT':
                 #self.log("HEARTBEAT")
                 #self.log(pck)
@@ -754,21 +756,12 @@ class SensorNode(wsn.Node):
                         #check if all nodes are registered
                         
                         self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
-
-                    # # sensor implementation
-                    # timer_duration =  self.id % 20
-                    # if timer_duration == 0: timer_duration = 1
-                    # self.set_timer('TIMER_SENSOR', timer_duration)
-        #elif self.role == Roles.ROUTER:  # if the node is registered
-        #    if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
-        #        self.route_and_forward_package(pck)
-        #        return
-        #    if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
-        #        self.received_JR_guis.append(pck['gui'])
-        #        # yield self.timeout(.5)
-        #        #if a router isn't immediately up the chain, become router
-        #        #self.become_router()
-        #        self.send_network_request() #this is getting spammed
+            if pck['type'] == 'CH_NOMINATION':
+                self.send_ch_nom_ack(pck)
+                self.set_role(Roles.CLUSTER_HEAD)
+                self.ch_addr = pck['addr']
+                self.send_network_update()
+                self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
         """Executes when a timer fired.
