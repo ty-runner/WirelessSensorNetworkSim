@@ -132,6 +132,7 @@ class SensorNode(wsn.Node):
         self.sleep()
         self.addr = None
         self.transfer_engaged = None
+        self.ch_transfer_target = None
         self.ch_addr = None #clusterhead address
         self.parent_gui = None 
         self.root_addr = None
@@ -269,16 +270,6 @@ class SensorNode(wsn.Node):
         self.set_role(Roles.ROUTER)
         self.remove_tx_range()
         self.ch_addr = None
-        
-    def become_ch_and_transfer(self, pck):
-        #if we hear a join request as a registered node, we want to become a clusterhead, let that node join, then transfer ownership to that node
-        #1. become CH
-        #2. register requesting node
-        #3. move ch role to registered node -> ACK
-        #4. change role from CH to router
-        self.send_network_request()
-        self.log(self.role)
-        self.send_ch_nomination()
 
     def send_ch_nomination(self):
         #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
@@ -320,9 +311,6 @@ class SensorNode(wsn.Node):
         pck['neighbor_hop_count'] = 1
         self.neighbors_table[pck['gui']] = pck
 
-        #if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
-        #    if not any(d['gui'] == pck['gui'] for d in self.candidate_parents_table):
-        #        self.candidate_parents_table.append(pck)
         # Step 1: skip if child or already a member
         if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
 
@@ -439,7 +427,10 @@ class SensorNode(wsn.Node):
 
         # Send up as an else case (tree routing)
         if self.role != Roles.ROOT:
-            pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
+            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:\
+                pck['next_hop'] = self.neighbors_table[self.parent_gui]['addr']
+            else:
+                pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
             path_str = "TREE"
 
         # Direct delivery or child cluster routing
@@ -616,9 +607,22 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'JOIN_ACK':
                 self.members_table.append(pck['source'])
                 if self.role == Roles.CLUSTER_HEAD:
-                    if self.transfer_engaged is None:
-                        self.send_ch_nomination()
-                        self.transfer_engaged = True
+                    # Only transfer if this is the node we became CH for
+                    if self.ch_transfer_target is not None and self.transfer_engaged is None:
+                        # Check if the ACK is from our target node
+                        target_addr = None
+                        for gui in self.received_JR_guis:
+                            if gui == self.ch_transfer_target:
+                                # Find this node's assigned address
+                                for node_id, assigned_gui in self.node_available_dict.items():
+                                    if assigned_gui == gui:
+                                        target_addr = wsn.Addr(self.ch_addr.net_addr, node_id)
+                                        break
+                                break
+                        
+                        if target_addr and pck['source'] == target_addr:
+                            self.send_ch_nomination()
+                            self.transfer_engaged = True
             if self.role == Roles.CLUSTER_HEAD:
                 if pck['type'] == 'CH_NOMINATION_ACK':
                     if getattr(self, 'awaiting_ack', False) and getattr(self, 'ch_nominee', None):
@@ -659,6 +663,7 @@ class SensorNode(wsn.Node):
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
                 self.received_JR_guis.append(pck['gui'])
+                self.ch_transfer_target = pck['gui']
                 self.send_network_request() #this is getting spammed
             if pck['type'] == 'TABLE_SHARE':
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
@@ -724,12 +729,6 @@ class SensorNode(wsn.Node):
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 #if self.role != Roles.ROOT:
                 #    self.send_network_update()
-            #if pck['type'] == 'CH_NOMINATION':
-            #    self.send_ch_nom_ack(pck)
-            #    self.set_role(Roles.CLUSTER_HEAD)
-            #    self.ch_addr = pck['addr']
-            #    self.send_network_update()
-            #    self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
             if pck['type'] == 'HEART_BEAT':  # it kills probe timer, becomes unregistered and sets join request timer once received heart beat
                 self.update_neighbor(pck)
