@@ -11,7 +11,7 @@ import csv  # <— add this near your other imports
 random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
 NODE_POS = {}  # {node_id: (x, y)}
-
+ADDR_TO_NODE = {} #mapping for visualization
 NODES_REGISTERED = 0 #global var
 # --- tracking containers ---
 ALL_NODES = []              # node objects
@@ -161,7 +161,40 @@ class SensorNode(wsn.Node):
 
         """
         self.set_timer('TIMER_ARRIVAL', self.arrival)
+    def set_address(self, addr):
+        """Set node address and update global mapping."""
+        global ADDR_TO_NODE
+        
+        # Remove old address if exists
+        if hasattr(self, 'addr') and self.addr is not None:
+            old_key = (self.addr.net_addr, self.addr.node_addr)
+            ADDR_TO_NODE.pop(old_key, None)
+        
+        # Set new address
+        self.addr = addr
+        
+        # Add to mapping
+        if addr is not None:
+            key = (addr.net_addr, addr.node_addr)
+            ADDR_TO_NODE[key] = self
 
+    def set_ch_address(self, ch_addr):
+        """Set cluster head address and update global mapping."""
+        global ADDR_TO_NODE
+        
+        # Remove old CH address if exists
+        if hasattr(self, 'ch_addr') and self.ch_addr is not None:
+            old_key = (self.ch_addr.net_addr, self.ch_addr.node_addr)
+            ADDR_TO_NODE.pop(old_key, None)
+        
+        # Set new CH address
+        self.ch_addr = ch_addr
+        
+        # Add to mapping (maps to same node)
+        if ch_addr is not None:
+            key = (ch_addr.net_addr, ch_addr.node_addr)
+            ADDR_TO_NODE[key] = self
+        print(ADDR_TO_NODE)
     ###################
     def register(self):
         # Called when node successfully registers
@@ -682,7 +715,7 @@ class SensorNode(wsn.Node):
                     write_clusterhead_distances_csv("clusterhead_distances.csv")
                 except Exception as e:
                     self.log(f"CH CSV export error: {e}")
-                self.ch_addr = pck['addr']
+                self.set_ch_address(pck['addr'])
                 self.send_network_update()
                 self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
@@ -702,7 +735,7 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'CH_NOMINATION':
                 self.send_ch_nom_ack(pck)
                 self.set_role(Roles.CLUSTER_HEAD)
-                self.ch_addr = pck['addr']
+                self.set_ch_address(pck['addr'])
                 self.send_network_update()
                 self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
 
@@ -742,7 +775,7 @@ class SensorNode(wsn.Node):
                 self.update_neighbor(pck)
             if pck['type'] == 'JOIN_REPLY':  # it becomes registered and sends join ack if the message is sent to itself once received join reply
                 if pck['dest_gui'] == self.id:
-                    self.addr = pck['addr']
+                    self.set_address(pck['addr'])
                     self.parent_gui = pck['gui']
                     self.root_addr = pck['root_addr']
                     self.hop_count = pck['hop_count']
@@ -766,7 +799,7 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'CH_NOMINATION':
                 self.send_ch_nom_ack(pck)
                 self.set_role(Roles.CLUSTER_HEAD)
-                self.ch_addr = pck['addr']
+                self.set_ch_address(pck['addr'])
                 self.send_network_update()
                 self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
     ###################
@@ -795,8 +828,8 @@ class SensorNode(wsn.Node):
                 if self.is_root_eligible:  # if the node is root eligible, it becomes root
                     self.set_role(Roles.ROOT)
                     self.scene.nodecolor(self.id, 0, 0, 0)
-                    self.addr = wsn.Addr(0, 254)
-                    self.ch_addr = wsn.Addr(0, 254)
+                    self.set_address(wsn.Addr(0, 254))
+                    self.set_ch_address(wsn.Addr(0, 254))
                     self.root_addr = self.addr
                     self.hop_count = 0
                     self.net_id_available_dict = {i: None for i in range(1, config.NUM_OF_CLUSTERS)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
