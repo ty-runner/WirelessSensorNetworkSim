@@ -131,6 +131,7 @@ class SensorNode(wsn.Node):
         self.scene.nodecolor(self.id, 1, 1, 1) # sets self color to white
         self.sleep()
         self.addr = None
+        self.transfer_engaged = None
         self.ch_addr = None #clusterhead address
         self.parent_gui = None 
         self.root_addr = None
@@ -343,9 +344,6 @@ class SensorNode(wsn.Node):
     def select_and_join(self):
         min_hop = 99999
         min_hop_gui = 99999
-        self.log("NODE THT FAILED")
-        self.log(self.candidate_parents_table)
-        self.log(self.neighbors_table)
         for gui in self.candidate_parents_table:
             gui = gui['gui'] #we are now passing in the full packet
             attempts = self.join_req_attempts.get(gui, 0)
@@ -519,7 +517,11 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        child_networks = [self.ch_addr.net_addr]
+        if self.ch_addr is None:
+            child_networks = []
+        else:
+            child_networks = [self.ch_addr.net_addr]
+
         for networks in self.child_networks_table.values():
             child_networks.extend(networks)
         self.log(self.neighbors_table)
@@ -614,7 +616,9 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'JOIN_ACK':
                 self.members_table.append(pck['source'])
                 if self.role == Roles.CLUSTER_HEAD:
-                    self.send_ch_nomination()
+                    if self.transfer_engaged is None:
+                        self.send_ch_nomination()
+                        self.transfer_engaged = True
             if self.role == Roles.CLUSTER_HEAD:
                 if pck['type'] == 'CH_NOMINATION_ACK':
                     if getattr(self, 'awaiting_ack', False) and getattr(self, 'ch_nominee', None):
@@ -716,6 +720,10 @@ class SensorNode(wsn.Node):
                         self.neighbors_table[neighbor] = cpy
                         if cpy['neighbor_hop_count'] > config.MESH_HOP_N + 1:
                             raise Exception("Something went wrong")
+            if pck['type'] == 'NETWORK_UPDATE':
+                self.child_networks_table[pck['gui']] = pck['child_networks']
+                #if self.role != Roles.ROOT:
+                #    self.send_network_update()
             #if pck['type'] == 'CH_NOMINATION':
             #    self.send_ch_nom_ack(pck)
             #    self.set_role(Roles.CLUSTER_HEAD)
