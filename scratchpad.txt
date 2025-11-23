@@ -7,4 +7,11 @@ Ongoing metrics:
 
 Things to measure for final report:
 - the more we grow the mesh table, how much more mesh routing do we see?
-- 
+
+State 12:20PM - 11/23: number of clusters made is now 38 instead of 56, so we see improvement here!
+
+Next steps:
+- recovery and mantenence
+- visualization of packets
+- metrics
+- optimization using tx range variation

@@ -6,12 +6,12 @@ from source import wsnlab_vis as wsn
 import math
 from source import config
 from collections import Counter
+from source.address_registry import ADDR_TO_NODE
 
 import csv  # <— add this near your other imports
 random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
 NODE_POS = {}  # {node_id: (x, y)}
-ADDR_TO_NODE = {} #mapping for visualization
 NODES_REGISTERED = 0 #global var
 # --- tracking containers ---
 ALL_NODES = []              # node objects

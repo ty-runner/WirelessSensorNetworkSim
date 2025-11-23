@@ -5,7 +5,7 @@ from source.wsnlab import *
 from threading import Thread
 from topovis import Scene
 from topovis.TkPlotter import Plotter
-
+from source.address_registry import ADDR_TO_NODE
 
 class Node(wsnlab.Node):
     """Class to model a visualised network node inherited wsnlab.Node.
@@ -61,8 +61,32 @@ class Node(wsnlab.Node):
                 self.draw_pck_trace(pck, "wsnsimpy:data")
             else:
                 self.draw_pck_trace(pck, "wsnsimpy:packet")
-
     def draw_pck_trace(self, pck, line_arg):
+        #from cluster_overlap_reduction import ADDR_TO_NODE
+        if not pck['dest'].is_equal(wsnlab.BROADCAST_ADDR):
+
+            # pick address from next_hop or dest
+            hop = pck['next_hop'] if 'next_hop' in pck else pck['dest']
+            key = (hop.net_addr, hop.node_addr)
+
+            mapped = ADDR_TO_NODE.get(key)
+            if mapped is None:
+                print(f"[WARN] No mapping for key {key} — cannot draw trace")
+                return
+
+            #dest_x, dest_y = self.sim.nodes[mapped].pos
+            dest_x, dest_y = mapped.pos
+            src_x, src_y = self.pos
+
+            steps = 25
+            for i in range(steps + 1):
+                t = i / steps
+                dot_x = src_x + (dest_x - src_x) * t
+                dot_y = src_y + (dest_y - src_y) * t
+
+                dot_id = self.scene.circle(dot_x, dot_y, 1, line=line_arg)
+                self.delayed_exec(0.02 * (i + 1), self.scene.delshape, dot_id)
+    '''def draw_pck_trace(self, pck, line_arg):
         if not pck['dest'].is_equal(wsnlab.BROADCAST_ADDR):
             if 'next_hop' in pck.keys():
                 addr = pck['next_hop'].node_addr
@@ -114,7 +138,7 @@ class Node(wsnlab.Node):
                     self.delayed_exec(0.02 * (i + 1), self.scene.delshape, dot_id)
 
                 # Remove the line after a short delay
-                #self.delayed_exec(0.25, self.scene.delshape, line_id)
+                #self.delayed_exec(0.25, self.scene.delshape, line_id)'''
 
 
 
