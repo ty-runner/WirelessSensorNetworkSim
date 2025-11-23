@@ -328,7 +328,7 @@ class SensorNode(wsn.Node):
             self.log(best_src)
             self.ch_nominee = best_src
             self.awaiting_ack = True
-            self.send({'dest': wsn.Addr(best_src[0], best_src[1]), 'type': 'CH_NOMINATION', 'source': self.addr, 'addr': self.ch_addr})
+            self.send({'dest': wsn.Addr(best_src[0], best_src[1]), 'type': 'CH_NOMINATION', 'source': self.addr, 'addr': self.ch_addr, 'avail_dict': self.node_available_dict})
             #self.become_router()
     def send_ch_nom_ack(self, pck):
         self.log("SENDING NOM ACK")
@@ -461,7 +461,7 @@ class SensorNode(wsn.Node):
 
         # Send up as an else case (tree routing)
         if self.role != Roles.ROOT:
-            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:\
+            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
                 pck['next_hop'] = self.neighbors_table[self.parent_gui]['addr']
             else:
                 pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
@@ -478,7 +478,12 @@ class SensorNode(wsn.Node):
                         pck['next_hop'] = self.neighbors_table[child_gui]['addr']
                         path_str = "TREE"
                         break
-
+        elif self.role == Roles.ROUTER:
+            for child_gui, child_networks in self.child_networks_table.items():
+                if pck['dest'].net_addr in child_networks:
+                    pck['next_hop'] = self.neighbors_table[child_gui]['addr']
+                    path_str = "TREE"
+                    break
         # Search neighbors_table values for a match by 'addr'
         neighbor_match = next(
             (entry for entry in self.neighbors_table.values() if entry['addr'] == pck['dest']),
@@ -735,7 +740,7 @@ class SensorNode(wsn.Node):
                 self.set_role(Roles.CLUSTER_HEAD)
                 self.set_ch_address(pck['addr'])
                 self.send_network_update()
-                self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
+                self.node_available_dict = pck['avail_dict']
 
         elif self.role == Roles.ROUTER:
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
