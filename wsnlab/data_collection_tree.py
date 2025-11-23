@@ -9,10 +9,10 @@ from collections import Counter
 
 
 import csv  # <— add this near your other imports
-
+random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
 NODE_POS = {}  # {node_id: (x, y)}
-
+NODES_REGISTERED = 0
 # --- tracking containers ---
 ALL_NODES = []              # node objects
 CLUSTER_HEADS = []
@@ -22,8 +22,89 @@ def _addr_str(a): return "" if a is None else str(a)
 def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
 
-Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD')
+Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER')
 """Enumeration of roles"""
+def log_all_nodes_registered():
+    """Log every node's status and role to topology.csv and check if all are registered."""
+    filename = "topology.csv"
+
+    # Create or overwrite the CSV file
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Node ID", "Position", "Role"])
+
+        unregistered_nodes = []
+
+        for node in ALL_NODES:
+            role = getattr(node, "role", "UNKNOWN")
+            position = getattr(node, "pos", None)
+            writer.writerow([node.id, position, role])
+
+            if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT, Roles.ROUTER}:
+                unregistered_nodes.append(node.id)
+
+    # Console output
+    if not unregistered_nodes:
+        print(f"✅ All {len(ALL_NODES)} nodes are registered. Logged to {filename}.")
+        return True
+    else:
+        print(f"⚠️ Unregistered nodes: {unregistered_nodes}. Logged to {filename}.")
+        return False
+with open("registration_log.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["node_id", "start_time", "registered_time", "delta_time"])
+def log_all_packets(packet_log, filename="packet_log.csv"):
+    """
+    Writes all packet creation and reception times to a CSV file.
+
+    Args:
+        packet_log (dict): Dictionary of packet data from the simulator.
+            Format:
+                packet_id -> {
+                    'created_at': float,
+                    'source': int,
+                    'received_at': [float, ...]
+                }
+        filename (str): Name of the CSV file to write.
+    """
+    with open(filename, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["packet_id", "source_node", "created_at", "received_at", "delay"])
+
+        for pck_id, entry in packet_log.items():
+            created_at = entry['created_at']
+            source = entry['source']
+            received_list = entry['received_at']
+
+            if not received_list:
+                writer.writerow([pck_id, source, created_at, "", ""])
+            else:
+                for recv_time in received_list:
+                    delay = recv_time - created_at
+                    writer.writerow([pck_id, source, created_at, recv_time, delay])
+
+def log_registration_time(node_id, start_time, registered_time, diff):
+    with open("registration_log.csv", "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([node_id, start_time, registered_time, diff])
+def check_all_nodes_registered():
+    """Log every node's status and role to topology.csv and check if all are registered."""
+
+    unregistered_nodes = []
+
+    for node in ALL_NODES:
+        role = getattr(node, "role", "UNKNOWN")
+        position = getattr(node, "pos", None)
+
+        if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT}:
+            unregistered_nodes.append(node.id)
+
+    # Console output
+    if not unregistered_nodes:
+        #print(f"✅ All {len(ALL_NODES)} nodes are registered. {sim.now}")
+        return True
+    else:
+        return False
 
 ###########################################################
 class SensorNode(wsn.Node):
@@ -64,7 +145,18 @@ class SensorNode(wsn.Node):
         self.child_networks_table = {}
         self.members_table = []
         self.received_JR_guis = []  # keeps received Join Request global unique ids
-
+        ALL_NODES.append(self)
+    ##########################
+    def register(self):
+        # Called when node successfully registers
+        self.registered_time = self.now
+        diff = self.registered_time - self.wake_up_time
+        #print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
+        global NODES_REGISTERED
+        NODES_REGISTERED += 1
+        print(NODES_REGISTERED)
+        if NODES_REGISTERED == len(ALL_NODES)-1:
+            log_all_nodes_registered()
     ###################
     def run(self):
         """Setting the arrival timer to wake up after firing.
@@ -269,7 +361,6 @@ class SensorNode(wsn.Node):
             if self.neighbors_table[pck['dest'].node_addr]['neighbor_hop_count'] > 1: 
                 #we can use mesh routing!
                 pck['next_hop'] = self.neighbors_table[pck['dest'].node_addr]['next_hop']
-                print("routed with mesh")
                 path_str = "MESH"
             else:
                 pck['next_hop'] = pck['dest']
@@ -467,6 +558,7 @@ class SensorNode(wsn.Node):
                         self.send_network_update()
                     else:
                         self.set_role(Roles.REGISTERED)
+                        self.register()
                         self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
 
                     # # sensor implementation
@@ -488,6 +580,7 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':  # it wakes up and set timer probe once time arrival timer fired
             self.scene.nodecolor(self.id, 1, 0, 0)  # sets self color to red
             self.wake_up()
+            self.wake_up_time = self.now #measure time when powered on
             self.set_timer('TIMER_PROBE', 1)
 
         elif name == 'TIMER_PROBE':  # it sends probe if counter didn't reach the threshold once timer probe fired.
