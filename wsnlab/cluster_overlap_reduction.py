@@ -549,14 +549,11 @@ class SensorNode(wsn.Node):
 
         for networks in self.child_networks_table.values():
             child_networks.extend(networks)
-        self.log(self.neighbors_table)
-        self.log(self.parent_gui)
         if self.neighbors_table[self.parent_gui]['ch_addr'] is None:
             dest = self.neighbors_table[self.parent_gui]['source']
         else:
             dest = self.neighbors_table[self.parent_gui]['ch_addr']
         #dest = self.neighbors_table[self.parent_gui]['ch_addr']
-        self.log(dest)
         self.send({'dest': dest, 'type': 'NETWORK_UPDATE', 'source': self.addr,
                    'gui': self.id, 'child_networks': child_networks})
     ###################
@@ -762,7 +759,7 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'NETWORK_UPDATE':
                 self.child_networks_table[pck['gui']] = pck['child_networks']
                 #if self.role != Roles.ROOT:
-                #    self.send_network_update()
+                self.send_network_update()
         elif self.role == Roles.UNDISCOVERED:  # if the node is undiscovered
             if pck['type'] == 'HEART_BEAT':  # it kills probe timer, becomes unregistered and sets join request timer once received heart beat
                 self.update_neighbor(pck)
