@@ -177,7 +177,7 @@ class SensorNode(wsn.Node):
         if addr is not None:
             key = (addr.net_addr, addr.node_addr)
             ADDR_TO_NODE[key] = self
-
+        print(ADDR_TO_NODE)
     def set_ch_address(self, ch_addr):
         """Set cluster head address and update global mapping."""
         global ADDR_TO_NODE
@@ -194,7 +194,7 @@ class SensorNode(wsn.Node):
         if ch_addr is not None:
             key = (ch_addr.net_addr, ch_addr.node_addr)
             ADDR_TO_NODE[key] = self
-        print(ADDR_TO_NODE)
+        
     ###################
     def register(self):
         # Called when node successfully registers
@@ -303,6 +303,7 @@ class SensorNode(wsn.Node):
         self.set_role(Roles.ROUTER)
         self.remove_tx_range()
         self.ch_addr = None
+        self.send_network_update()
 
     def send_ch_nomination(self):
         #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
