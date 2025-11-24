@@ -302,8 +302,10 @@ class SensorNode(wsn.Node):
         #the router will essentially be a bridge between 2 CH's
         self.set_role(Roles.ROUTER)
         self.remove_tx_range()
+        self.tx_range = config.NODE_TX_RANGES[config.NODE_DEFAULT_TX_POWER] #routers transmit at max range
         self.ch_addr = None
         self.send_network_update()
+        self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
 
     def send_ch_nomination(self):
         #of our registered nodes in our members table, we want to transfer the role to the node that is furthest away from us
@@ -324,14 +326,11 @@ class SensorNode(wsn.Node):
                 print(f"No matching member found for neighbor {gui} with source {src}")
         if candidates:
             best_src = max(candidates, key=candidates.get)
-            self.log("candidate chosen")
-            self.log(best_src)
             self.ch_nominee = best_src
             self.awaiting_ack = True
             self.send({'dest': wsn.Addr(best_src[0], best_src[1]), 'type': 'CH_NOMINATION', 'source': self.addr, 'addr': self.ch_addr, 'avail_dict': self.node_available_dict})
             #self.become_router()
     def send_ch_nom_ack(self, pck):
-        self.log("SENDING NOM ACK")
         self.send({'dest': pck['source'], 'type': 'CH_NOMINATION_ACK', 'source': self.addr})
     ###################
     def update_neighbor(self, pck):
@@ -669,7 +668,6 @@ class SensorNode(wsn.Node):
                     if getattr(self, 'awaiting_ack', False) and getattr(self, 'ch_nominee', None):
                         # ACK is from the node we nominated
                         if pck['source'].net_addr == self.ch_nominee[0] and pck['source'].node_addr == self.ch_nominee[1]:
-                            self.log("CH nomination ACK received; becoming router")
                             self.become_router()
                             self.awaiting_ack = False
                             self.ch_nominee = None
@@ -725,6 +723,7 @@ class SensorNode(wsn.Node):
                     self.log(f"CH CSV export error: {e}")
                 self.set_ch_address(pck['addr'])
                 self.send_network_update()
+                self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
                 self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
 
                 # yield self.timeout(.5)
@@ -745,6 +744,7 @@ class SensorNode(wsn.Node):
                 self.set_role(Roles.CLUSTER_HEAD)
                 self.set_ch_address(pck['addr'])
                 self.send_network_update()
+                self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
                 self.node_available_dict = pck['avail_dict']
 
         elif self.role == Roles.ROUTER:
@@ -797,6 +797,7 @@ class SensorNode(wsn.Node):
                     if self.ch_addr is not None: # it could be a cluster head which lost its parent
                         self.set_role(Roles.CLUSTER_HEAD)
                         self.send_network_update()
+                        self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
                     else:
                         self.set_role(Roles.REGISTERED)
                         self.register()
@@ -809,6 +810,7 @@ class SensorNode(wsn.Node):
                 self.set_role(Roles.CLUSTER_HEAD)
                 self.set_ch_address(pck['addr'])
                 self.send_network_update()
+                self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
                 self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
     ###################
     def on_timer_fired(self, name, *args, **kwargs):
@@ -860,7 +862,7 @@ class SensorNode(wsn.Node):
         #        self.send_network_request()
         #        self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
-            self.log("TIMER JOIN REQ")
+            #self.log("TIMER JOIN REQ")
             if self.role != Roles.UNREGISTERED and self.role != Roles.UNDISCOVERED:
                 self.kill_timer('TIMER_JOIN_REQUEST')
                 return
@@ -869,6 +871,9 @@ class SensorNode(wsn.Node):
             else:  # otherwise it chose one of them and sends join request
                 self.select_and_join()
                 self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
+        elif name == 'TIMER_NETWORK_UPDATE': #periodic transmission of network topology so root has guaranteed context
+            self.send_network_update()
+            self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
         elif name == 'TIMER_TABLE_SHARE':
             self.send_table_share()
             self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)

@@ -253,9 +253,14 @@ class Simulator(wsnlab.Simulator):
             self.scene.linestyle("wsnsimpy:tx", color=(0, 0, 1), dash=(5, 5))
             self.scene.linestyle("wsnsimpy:ack", color=(0, 1, 1), dash=(5, 5))
             self.scene.linestyle("wsnsimpy:unicast", color=(0, 0, 1), width=3, arrow='head')
+
             self.scene.linestyle("wsnsimpy:packet", color=(1, 0, 0), width=3)
             self.scene.linestyle("wsnsimpy:mesh", color=(1, 0, 1), width=3)
             self.scene.linestyle("wsnsimpy:data", color=(1, 1, 0), width=3)
+            self.scene.linestyle("wsnsimpy:network_assignment", color=(1, 0, 0), width=3)
+            self.scene.linestyle("wsnsimpy:table_share", color=(1, 0, 1), width=3)
+            self.scene.linestyle("wsnsimpy:sensor_data", color=(1, 1, 0), width=3)
+
             self.scene.linestyle("wsnsimpy:collision", color=(1, 0, 0), width=3)
             self.scene.linestyle("parent", color=(0,.8,0), arrow="tail", width=2)
             if title is None:
