@@ -461,7 +461,7 @@ class SensorNode(wsn.Node):
 
         # Send up as an else case (tree routing)
         if self.role != Roles.ROOT:
-            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
+            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER and self.role != Roles.REGISTERED:
                 pck['next_hop'] = self.neighbors_table[self.parent_gui]['addr']
             else:
                 pck['next_hop'] = self.neighbors_table[self.parent_gui]['ch_addr']
@@ -688,6 +688,10 @@ class SensorNode(wsn.Node):
                 # self.log(str(pck['source'])+'--'+str(pck['sensor_value']))
 
         elif self.role == Roles.REGISTERED:  # if the node is registered
+            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
+                self.remove_parent() #we cant transmit to router anymore!
+                self.parent_gui = None
+                self.become_unregistered()
             #check to see if we have 2 clusterheads present in our neighbor table, IMMEDIATE NEIGHBORS
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)
@@ -855,16 +859,20 @@ class SensorNode(wsn.Node):
         #        self.send_network_request()
         #        self.set_timer("NET_REQ_TIMEOUT", config.SLEEP_MODE_PROBE_TIME_INTERVAL)
         elif name == 'TIMER_JOIN_REQUEST':  # if it has not received heart beat messages before, it sets timer again and wait heart beat messages once join request timer fired.
-            #self.log("TIMER JOIN REQ")
+            self.log("TIMER JOIN REQ")
+            if self.role != Roles.UNREGISTERED and self.role != Roles.UNDISCOVERED:
+                self.kill_timer('TIMER_JOIN_REQUEST')
+                return
             if len(self.candidate_parents_table) == 0:
                 self.become_unregistered()
             else:  # otherwise it chose one of them and sends join request
                 self.select_and_join()
+                self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
         elif name == 'TIMER_TABLE_SHARE':
             self.send_table_share()
             self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
         elif name == 'TIMER_SENSOR':
-            #return #TEMP FIX
+            return #TEMP FIX
             self.send_sensor_data()
             self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
         #elif name == 'TIMER_SENSOR':

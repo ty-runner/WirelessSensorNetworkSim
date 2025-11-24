@@ -168,6 +168,9 @@ class Node(wsnlab.Node):
             self.scene.delshape(self.tx_range_obj)
             self.tx_range_obj = None
 
+    def remove_parent(self):
+        if hasattr(self, 'parent_gui'):
+            self.scene.dellink(self.parent_link_id[0], self.parent_link_id[1], self.parent_link_id[2])
     def move(self, x, y):
         """Visualise move process in addition to base move method.
 
@@ -191,6 +194,7 @@ class Node(wsnlab.Node):
 
         """
         self.scene.addlink(self.parent_gui, self.id, "parent")
+        self.parent_link_id = [self.parent_gui, self.id, "parent"]
 
     ####################
     def erase_parent(self):
