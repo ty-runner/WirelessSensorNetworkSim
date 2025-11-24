@@ -345,6 +345,11 @@ class SensorNode(wsn.Node):
         pck['neighbor_hop_count'] = 1
         self.neighbors_table[pck['gui']] = pck
 
+        #logic here is if our parent changes to a router, we cant communicate through them directly, need to find new parent
+        if self.role == Roles.REGISTERED and self.parent_gui is not None:
+            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
+                self.become_unregistered()
+                return
         # Step 1: skip if child or already a member
         if pck['gui'] not in self.child_networks_table.keys() or pck['addr'] not in self.members_table:
 
@@ -688,10 +693,6 @@ class SensorNode(wsn.Node):
                 # self.log(str(pck['source'])+'--'+str(pck['sensor_value']))
 
         elif self.role == Roles.REGISTERED:  # if the node is registered
-            if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
-                self.remove_parent() #we cant transmit to router anymore!
-                self.parent_gui = None
-                self.become_unregistered()
             #check to see if we have 2 clusterheads present in our neighbor table, IMMEDIATE NEIGHBORS
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)
