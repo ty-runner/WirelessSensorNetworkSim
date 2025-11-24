@@ -157,6 +157,7 @@ class SensorNode(wsn.Node):
         print(NODES_REGISTERED)
         if NODES_REGISTERED == len(ALL_NODES)-1:
             log_all_nodes_registered()
+        log_registration_time(self.id, self.wake_up_time, self.registered_time, diff)
     ###################
     def run(self):
         """Setting the arrival timer to wake up after firing.
