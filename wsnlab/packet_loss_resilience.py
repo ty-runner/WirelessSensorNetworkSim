@@ -332,6 +332,7 @@ class SensorNode(wsn.Node):
             #self.become_router()
     def send_ch_nom_ack(self, pck):
         self.send({'dest': pck['source'], 'type': 'CH_NOMINATION_ACK', 'source': self.addr})
+
     ###################
     def update_neighbor(self, pck):
         pck = pck.copy()
@@ -347,6 +348,10 @@ class SensorNode(wsn.Node):
         #logic here is if our parent changes to a router, we cant communicate through them directly, need to find new parent
         if self.role == Roles.REGISTERED and self.parent_gui is not None:
             if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
+                self.become_unregistered()
+                return
+        if self.role == Roles.REGISTERED: #if our parent died, recover!
+            if self.now - self.neighbors_table[self.parent_gui]['arrival_time'] > (config.TABLE_SHARE_INTERVAL * 2):
                 self.become_unregistered()
                 return
         # Step 1: skip if child or already a member
@@ -506,7 +511,7 @@ class SensorNode(wsn.Node):
         match = neighbor_match or member_match
         if match:
             # Mesh routing if neighbor_hop_count > 1, else direct
-            if match.get('neighbor_hop_count', 1) > 1:
+            if not isinstance(match, wsn.Addr) and match.get('neighbor_hop_count', 1) > 1:
                 pck['next_hop'] = match.get('next_hop', pck['dest'])
                 path_str = "MESH"
             else:
@@ -613,7 +618,9 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.check_power()
         self.power -= ((config.RX_CURRENT * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
+        
         if self.role == Roles.ROOT or self.role == Roles.CLUSTER_HEAD:  # if the node is root or cluster head
             if 'next_hop' in pck.keys() and pck['dest'] != self.addr and pck['dest'] != self.ch_addr:  # forwards message if destination is not itself
                 self.route_and_forward_package(pck)
@@ -836,6 +843,7 @@ class SensorNode(wsn.Node):
                 self.set_timer('TIMER_PROBE', 1)
             else:  # if the counter reached the threshold
                 if self.is_root_eligible:  # if the node is root eligible, it becomes root
+                    self.power = 999999 #root cant die
                     self.set_role(Roles.ROOT)
                     self.scene.nodecolor(self.id, 0, 0, 0)
                     self.set_address(wsn.Addr(0, 254))

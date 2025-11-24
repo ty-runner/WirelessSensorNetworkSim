@@ -144,7 +144,7 @@ class Node:
            Returns:
                Node: Created node object.
         """
-        self.power = 21600 #Joules
+        self.power = config.JOULES #Joules
         self.tx_current = config.TX_CURRENTS[config.NODE_DEFAULT_TX_POWER] #select max always to start
         self.pos = pos
         self.tx_range = 0
@@ -218,6 +218,13 @@ class Node:
                 return True
         return False
 
+    def check_power(self):
+        if self.power < config.JOULES * config.LOW_POWER_THRESHOLD and not self.is_sleep:
+            self.sleep()
+            self.log('I AM DEAD')
+            self.scene.nodecolor(self.id, 0.5, 0.5, 0.5)  # sets self color to red
+            self.erase_parent()
+            self.kill_all_timers()
     ############################
     def send(self, pck):
         """Sends given package. If dest address in pck is broadcast address, it sends the package to all neighbors.
@@ -227,7 +234,7 @@ class Node:
            Returns:
 
         """
-        
+        self.check_power()
         for (dist, node) in self.neighbor_distance_list:
             if dist <= self.tx_range:
                 self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
