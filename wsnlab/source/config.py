@@ -1,4 +1,5 @@
 import math
+import random
 ## network properties
 BROADCAST_NET_ADDR = 255
 BROADCAST_NODE_ADDR = 255
@@ -31,6 +32,7 @@ SIM_VISUALIZATION = True  # visualization active
 SCALE = 1  # scale factor for visualization
 VIS = 0 #0 for no viz, 1 for viz
 SEED = 1 #seed for reproducibility 
+random.seed(SEED)
 NUM_OF_CHILDREN = 253 #num of children a given cluster head can have, must be 2^N - 3
 bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
 bits_cluster = TOTAL_BITS - bits_child
@@ -49,3 +51,27 @@ TABLE_SHARE_INTERVAL = 30
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
 EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
+
+#PARAMETERS TO KILL NODES
+node_ids = []
+def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_wakeup_delay):
+    cycles = {}
+
+    for nid in node_ids:
+        death = random.uniform(min_death, max_death)
+
+        # wakeup must be after death
+        wakeup_delay = random.uniform(min_wakeup_delay, max_wakeup_delay)
+        wakeup = death + wakeup_delay
+
+        cycles[nid] = {
+            "death_time": death,
+            "wakeup_time": wakeup
+        }
+
+    return cycles
+MIN_DEATH = NODE_ARRIVAL_MAX
+MAX_DEATH = MIN_DEATH * 3
+MIN_WAKEUP = MAX_DEATH + 1
+MAX_WAKEUP = MIN_WAKEUP + NODE_ARRIVAL_MAX
+KILL_AND_WAKEUP = generate_sleep_cycles(node_ids, MIN_DEATH, MAX_DEATH, MIN_WAKEUP, MAX_WAKEUP)

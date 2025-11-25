@@ -1,5 +1,5 @@
 import random
-from enum import Enum
+
 import sys
 sys.path.insert(1, '.')
 from source import wsnlab_vis as wsn
@@ -7,7 +7,7 @@ import math
 from source import config
 from collections import Counter
 from source.address_registry import ADDR_TO_NODE
-
+from source.wsnlab import Roles
 import csv  # <— add this near your other imports
 random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
@@ -22,7 +22,7 @@ def _addr_str(a): return "" if a is None else str(a)
 def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
 
-Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER')
+
 """Enumeration of roles"""
 def log_all_nodes_registered():
     """Log every node's status and role to topology.csv and check if all are registered."""
@@ -161,6 +161,9 @@ class SensorNode(wsn.Node):
 
         """
         self.set_timer('TIMER_ARRIVAL', self.arrival)
+        if self.id != ROOT_ID:
+            if self.id in config.KILL_AND_WAKEUP.keys():
+                self.set_timer('TIMER_DEAD', config.KILL_AND_WAKEUP[self.id]['death_time']) #it is looming!!
     def set_address(self, addr):
         """Set node address and update global mapping."""
         global ADDR_TO_NODE
@@ -279,6 +282,7 @@ class SensorNode(wsn.Node):
             self.kill_all_timers()
             self.log('I became UNREGISTERED')
         self.scene.nodecolor(self.id, 1, 1, 0)
+        self.remove_tx_range()
         self.erase_parent()
         self.addr = None
         self.ch_addr = None
@@ -292,6 +296,7 @@ class SensorNode(wsn.Node):
         self.candidate_parents_table = []
         self.child_networks_table = {}
         self.members_table = []
+        self.join_req_attempts = {}
         self.received_JR_guis = []  # keeps received Join Request global unique ids
         self.send_probe()
         self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
@@ -350,7 +355,7 @@ class SensorNode(wsn.Node):
             if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER:
                 self.become_unregistered()
                 return
-        if self.role == Roles.REGISTERED: #if our parent died, recover!
+        if self.role == Roles.REGISTERED or self.role == Roles.ROUTER or self.role == Roles.CLUSTER_HEAD: #if our parent died, recover!
             if self.now - self.neighbors_table[self.parent_gui]['arrival_time'] > (config.TABLE_SHARE_INTERVAL * 2):
                 self.become_unregistered()
                 return
@@ -387,7 +392,7 @@ class SensorNode(wsn.Node):
             self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
             selected_addr = self.neighbors_table[min_hop_gui]['source']
             self.send_join_request(selected_addr)
-        self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
+        #self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
 
 
     ###################
@@ -606,8 +611,9 @@ class SensorNode(wsn.Node):
                 #collect list of these hop count neighbors, and send to all immediate neighbors
         for neighbor in self.neighbors_table.values(): #only send table to immediate neighbors
             if neighbor['neighbor_hop_count'] == 1:
-                self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
-                        'gui': self.id, 'neighbors': mesh_neighbors})
+                if neighbor['role'] != Roles.UNREGISTERED:
+                    self.send({'dest': neighbor['source'], 'type': 'TABLE_SHARE', 'source': self.addr,
+                            'gui': self.id, 'neighbors': mesh_neighbors})
 
     ###################
     def on_receive(self, pck):
@@ -686,7 +692,7 @@ class SensorNode(wsn.Node):
                 #if neighbor in table share data is not our neighbor, append to neighbor table with hop_count + 1, next_hop = source addr of message
                 if self.role != Roles.ROOT:
                     for neighbor, packet in pck['neighbors'].items():
-                        if neighbor not in self.neighbors_table and neighbor != self.id:
+                        if neighbor not in self.neighbors_table and neighbor != self.id and packet['gui'] != self.id:
                             cpy = packet.copy()
                             cpy['neighbor_hop_count'] += 1
                             cpy['next_hop'] = pck['source']
@@ -904,6 +910,13 @@ class SensorNode(wsn.Node):
             if self.role == Roles.ROOT:
                 write_neighbor_distances_csv("neighbor_distances.csv")
                 self.set_timer('TIMER_EXPORT_NEIGHBOR_CSV', config.EXPORT_NEIGHBOR_CSV_INTERVAL)
+        elif name == 'TIMER_DEAD':  # it dies and goes to sleep
+            self.sleep()
+            self.log('I AM DEAD')
+            self.scene.nodecolor(self.id, 0.5, 0.5, 0.5)  # sets self color to red
+            self.erase_parent()
+            self.kill_all_timers()
+            self.set_timer("TIMER_ARRIVAL", config.KILL_AND_WAKEUP[self.id]['wakeup_time'])
 
 
 

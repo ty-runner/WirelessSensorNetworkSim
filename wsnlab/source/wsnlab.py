@@ -3,14 +3,14 @@ Based on wsnsimpy library. Timers, Network address and Sleep mode are included b
 """
 import csv
 import os
-
+from enum import Enum
 import bisect
 import inspect
 import random
 import simpy
 from simpy.util import start_delayed
 from source import config
-
+Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER')
 ###########################################################
 class Addr:
     """Use for a network address which has two parts
@@ -220,9 +220,11 @@ class Node:
 
     def check_power(self):
         if self.power < config.JOULES * config.LOW_POWER_THRESHOLD and not self.is_sleep:
+            self.remove_tx_range()
             self.sleep()
             self.log('I AM DEAD')
             self.scene.nodecolor(self.id, 0.5, 0.5, 0.5)  # sets self color to red
+
             self.erase_parent()
             self.kill_all_timers()
     ############################
