@@ -987,7 +987,6 @@ class SensorNode(wsn.Node):
             self.send_table_share()
             self.set_timer('TIMER_TABLE_SHARE', config.TABLE_SHARE_INTERVAL)
         elif name == 'TIMER_SENSOR':
-            return #TEMP FIX
             self.send_sensor_data()
             self.set_timer('TIMER_SENSOR', config.DATA_INTERVAL)
         #elif name == 'TIMER_SENSOR':
