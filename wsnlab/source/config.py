@@ -38,7 +38,7 @@ NUM_OF_CHILDREN = 253 #num of children a given cluster head can have, must be 2^
 bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
 bits_cluster = TOTAL_BITS - bits_child
 NUM_OF_CLUSTERS = (1 << bits_cluster) - 1
-ALLOW_TX_POWER_CHOICE = 1 #1 for smart choice, 0 for default across all
+ALLOW_TX_POWER_CHOICE = 0 #1 for smart choice, 0 for default across all
 TRANSMISSION_TIME = 0.00000005 #seconds, 133 * 8 / tx_rate = 4.256 ms round up to 5 ms
 PROCESSING_TIME = 0.000001 #seconds, research for CC2420 was around a mean of 1 ms. HAD TO SCALE THESE VALUES DOWN FOR SAKE OF THE SIMULATION
 ## application properties
@@ -55,7 +55,7 @@ EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
 
 #PARAMETERS TO KILL NODES
-node_ids = []
+node_ids = [25]
 def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_wakeup_delay):
     cycles = {}
 

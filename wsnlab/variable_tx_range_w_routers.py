@@ -881,7 +881,7 @@ class SensorNode(wsn.Node):
                     self.hop_count = 0
                     self.net_id_available_dict = {i: None for i in range(1, config.NUM_OF_CLUSTERS)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
                     self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)} #what we will need to add for this to be stable is the reopening of a lost network, but we get there when we get there
-
+                    self.tx_range = config.NODE_TX_RANGES[config.NODE_DEFAULT_TX_POWER]
                     self.set_timer('TIMER_HEART_BEAT', config.HEART_BEAT_TIME_INTERVAL)
                 else:  # otherwise it keeps trying to sending probe after a long time
                     self.c_probe = 0
@@ -937,9 +937,13 @@ class SensorNode(wsn.Node):
             self.sleep()
             self.log('I AM DEAD')
             self.scene.nodecolor(self.id, 0.5, 0.5, 0.5)  # sets self color to red
+            self.remove_tx_range()
+            self.c_probe = 0
             self.erase_parent()
             self.kill_all_timers()
             self.set_timer("TIMER_ARRIVAL", config.KILL_AND_WAKEUP[self.id]['wakeup_time'])
+            self.set_role(Roles.UNDISCOVERED)
+            self.parent_gui = None
 
 
 
