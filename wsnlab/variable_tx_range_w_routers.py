@@ -24,21 +24,24 @@ def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
 
 """Enumeration of roles"""
+
 def log_all_nodes_registered():
-    """Log every node's status and role to topology.csv and check if all are registered."""
+    """Log every node's status, power, and role to topology.csv and check if all are registered."""
     filename = "topology.csv"
 
     # Create or overwrite the CSV file
     with open(filename, mode="w", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow(["Node ID", "Position", "Role"])
+        writer.writerow(["Node ID", "Position", "Role", "Power"])
 
         unregistered_nodes = []
 
         for node in ALL_NODES:
             role = getattr(node, "role", "UNKNOWN")
             position = getattr(node, "pos", None)
-            writer.writerow([node.id, position, role])
+            power = getattr(node, "power", None)  # <-- added
+
+            writer.writerow([node.id, position, role, power])
 
             if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT, Roles.ROUTER}:
                 unregistered_nodes.append(node.id)
@@ -50,6 +53,25 @@ def log_all_nodes_registered():
     else:
         print(f"⚠️ Unregistered nodes: {unregistered_nodes}. Logged to {filename}.")
         return False
+
+
+def log_final_node_power_levels():
+    """Log each node's final TX power (and optionally role + position) to node_power_levels.csv."""
+    filename = "node_power_levels.csv"
+
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Node ID", "Position", "Role", "Power"])
+
+        for node in ALL_NODES:
+            role = getattr(node, "role", "UNKNOWN")
+            position = getattr(node, "pos", None)
+            power = getattr(node, "power", None)  # or tx_power if that's the real attribute
+
+            writer.writerow([node.id, position, role, power])
+
+    print(f"📄 Node power levels logged to {filename}.")
+
 with open("registration_log.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["node_id", "start_time", "registered_time", "delta_time"])
@@ -87,6 +109,9 @@ def log_registration_time(node_id, start_time, registered_time, diff):
     with open("registration_log.csv", "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([node_id, start_time, registered_time, diff])
+with open("node_power_levels_over_time.csv", "w", newline="") as f:
+    w = csv.writer(f)
+    w.writerow(["time", "node_id", "power"])
 def check_all_nodes_registered():
     """Log every node's status and role to topology.csv and check if all are registered."""
 
@@ -153,6 +178,15 @@ class SensorNode(wsn.Node):
         self.join_req_attempts = {}
         self.received_JR_guis = []  # keeps received Join Request global unique ids
         ALL_NODES.append(self)
+        self.start_power_logging()
+    def start_power_logging(self):
+        def _log():
+            while True:
+                with open("node_power_levels_over_time.csv", "a", newline="") as f:
+                    w = csv.writer(f)
+                    w.writerow([self.sim.env.now, self.id, self.power])
+                yield self.sim.timeout(100)  # every 100 simulation time units
+        self.sim.env.process(_log())
     ###################
     def run(self):
         """Setting the arrival timer to wake up after firing.
@@ -166,6 +200,7 @@ class SensorNode(wsn.Node):
         if self.id != ROOT_ID:
             if self.id in config.KILL_AND_WAKEUP.keys():
                 self.set_timer('TIMER_DEAD', config.KILL_AND_WAKEUP[self.id]['death_time']) #it is looming!!
+
     def set_address(self, addr):
         """Set node address and update global mapping."""
         global ADDR_TO_NODE
@@ -871,6 +906,7 @@ class SensorNode(wsn.Node):
                     else:
                         self.set_role(Roles.REGISTERED)
                         self.register()
+                        self.kill_timer('TIMER_PROBE')
                         check_all_nodes_registered()
                         #check if all nodes are registered
                         
@@ -1148,6 +1184,7 @@ write_node_distance_matrix_csv("node_distance_matrix.csv")
 # start the simulation
 sim.run()
 log_all_packets(sim.packet_log)
+log_final_node_power_levels()
 print("Simulation Finished")
 
 
