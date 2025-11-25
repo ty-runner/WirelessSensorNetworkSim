@@ -11,7 +11,7 @@ NODE_DEFAULT_TX_POWER = "0 dBm"
 TX_POWER_LEVELS = ["-25 dBm", "-15 dBm", "-10 dBm", "-5 dBm", "0 dBm"]
 NODE_TX_RANGES = {"-25 dBm": 5, "-15 dBm": 25, "-10 dBm": 50, "-5 dBm": 75, "0 dBm": 100} #TX range of nodes in meters
 NODE_ARRIVAL_MAX = 200  # max time to wake up
-NODE_LOSS_CHANCE = 0.06 #between 0 and 1
+NODE_LOSS_CHANCE = 0.05 #between 0 and 1
 def get_tx_range(power):
     return NODE_TX_RANGES[power]
 ##Radio properties, CC2420

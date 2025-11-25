@@ -17,3 +17,4 @@ The implementation names variable tx range, but this is a configurable toggle.
 Configurable Toggles:
 - VIS: 0 or 1, 0 for no visualization, 1 for visualization of packet traces
 - ALLOW_TX_POWER_CHOICE: 0 or 1, 0 for default max tx power for all nodes, 1 smart choice protocol
+- NODE_LOSS_CHANCE = 0.05 #between 0 and 1
