@@ -11,7 +11,7 @@ NODE_DEFAULT_TX_POWER = "0 dBm"
 TX_POWER_LEVELS = ["-25 dBm", "-15 dBm", "-10 dBm", "-5 dBm", "0 dBm"]
 NODE_TX_RANGES = {"-25 dBm": 5, "-15 dBm": 25, "-10 dBm": 50, "-5 dBm": 75, "0 dBm": 100} #TX range of nodes in meters
 NODE_ARRIVAL_MAX = 200  # max time to wake up
-NODE_LOSS_CHANCE = 0.0 #between 0 and 1
+NODE_LOSS_CHANCE = 0.06 #between 0 and 1
 def get_tx_range(power):
     return NODE_TX_RANGES[power]
 ##Radio properties, CC2420
@@ -48,14 +48,14 @@ JOIN_REQUEST_TIME_INTERVAL = 10
 JR_THRESHOLD_TO_EXPAND_TX_RANGE = 10
 NETWORK_REQUEST_TIME_INTERVAL = JOIN_REQUEST_TIME_INTERVAL * 2
 DATA_INTERVAL = 100
-MESH_HOP_N = 0
+MESH_HOP_N = 5
 TABLE_SHARE_INTERVAL = 30
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
 EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
 
 #PARAMETERS TO KILL NODES
-node_ids = [25] #25 is a good one to kill
+node_ids = [] #25 is a good one to kill
 def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_wakeup_delay):
     cycles = {}
 
