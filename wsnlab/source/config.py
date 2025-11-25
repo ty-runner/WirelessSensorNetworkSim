@@ -38,24 +38,24 @@ NUM_OF_CHILDREN = 253 #num of children a given cluster head can have, must be 2^
 bits_child = math.ceil(math.log2(NUM_OF_CHILDREN))
 bits_cluster = TOTAL_BITS - bits_child
 NUM_OF_CLUSTERS = (1 << bits_cluster) - 1
-ALLOW_TX_POWER_CHOICE = 0 #1 for smart choice, 0 for default across all
+ALLOW_TX_POWER_CHOICE = 1 #1 for smart choice, 0 for default across all
 TRANSMISSION_TIME = 0.00000005 #seconds, 133 * 8 / tx_rate = 4.256 ms round up to 5 ms
 PROCESSING_TIME = 0.000001 #seconds, research for CC2420 was around a mean of 1 ms. HAD TO SCALE THESE VALUES DOWN FOR SAKE OF THE SIMULATION
 ## application properties
 SLEEP_MODE_PROBE_TIME_INTERVAL = 30
 HEART_BEAT_TIME_INTERVAL = 1
 JOIN_REQUEST_TIME_INTERVAL = 10
-JR_THRESHOLD_TO_EXPAND_TX_RANGE = 20
+JR_THRESHOLD_TO_EXPAND_TX_RANGE = 10
 NETWORK_REQUEST_TIME_INTERVAL = JOIN_REQUEST_TIME_INTERVAL * 2
 DATA_INTERVAL = 100
-MESH_HOP_N = 1
+MESH_HOP_N = 0
 TABLE_SHARE_INTERVAL = 30
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
 EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
 
 #PARAMETERS TO KILL NODES
-node_ids = [25]
+node_ids = [] #25 is a good one to kill
 def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_wakeup_delay):
     cycles = {}
 
