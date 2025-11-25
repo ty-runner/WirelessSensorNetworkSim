@@ -104,8 +104,17 @@ def log_all_packets(packet_log, filename="packet_log.csv"):
                 for recv_time in received_list:
                     delay = recv_time - created_at
                     writer.writerow([pck_id, source, created_at, recv_time, delay])
-
-def log_registration_time(node_id, start_time, registered_time, diff):
+with open("recovery_time.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["node_id", "recovery_time"])
+def log_registration_time(node_id, start_time, registered_time, diff, wakeup_time = None):
+    if node_id in config.KILL_AND_WAKEUP.keys() and registered_time >= config.KILL_AND_WAKEUP[node_id]['wakeup_time']:
+        recovery_time = 0
+        if wakeup_time is not None:
+            recovery_time = registered_time - wakeup_time
+        with open("recovery_time.csv", "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([node_id, recovery_time])
     with open("registration_log.csv", "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([node_id, start_time, registered_time, diff])
@@ -245,7 +254,7 @@ class SensorNode(wsn.Node):
         NODES_REGISTERED += 1
         if NODES_REGISTERED == len(ALL_NODES)-1:
             log_all_nodes_registered()
-        log_registration_time(self.id, self.wake_up_time, self.registered_time, diff)
+        log_registration_time(self.id, self.wake_up_time, self.registered_time, diff, self.wake_up_time)
 
     def assign_tx_power(self, power_level=None):
         if power_level is None:
@@ -932,7 +941,7 @@ class SensorNode(wsn.Node):
         if name == 'TIMER_ARRIVAL':  # it wakes up and set timer probe once time arrival timer fired
             self.scene.nodecolor(self.id, 1, 0, 0)  # sets self color to red
             self.wake_up()
-            self.wake_up_time = self.now #measure time when powered on
+            self.wake_up_time = self.now #measure time when powered on  
             self.set_timer('TIMER_PROBE', 1)
 
         elif name == 'TIMER_PROBE':  # it sends probe if counter didn't reach the threshold once timer probe fired.

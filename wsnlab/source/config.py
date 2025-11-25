@@ -55,7 +55,7 @@ EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
 
 #PARAMETERS TO KILL NODES
-node_ids = [] #25 is a good one to kill
+node_ids = [25] #25 is a good one to kill
 def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_wakeup_delay):
     cycles = {}
 
