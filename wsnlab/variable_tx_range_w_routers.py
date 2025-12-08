@@ -412,7 +412,10 @@ class SensorNode(wsn.Node):
                 self.become_unregistered()
                 return
         if self.role == Roles.REGISTERED or self.role == Roles.ROUTER or self.role == Roles.CLUSTER_HEAD: #if our parent died, recover!
-            if self.now - self.neighbors_table[self.parent_gui]['arrival_time'] > (config.TABLE_SHARE_INTERVAL * 2):
+            if self.now - self.neighbors_table[self.parent_gui]['arrival_time'] > (config.TABLE_SHARE_INTERVAL):
+                self.become_unregistered()
+                return
+            if self.neighbors_table[self.parent_gui]['role'] == Roles.UNREGISTERED or self.neighbors_table[self.parent_gui]['role'] == Roles.REGISTERED:                
                 self.become_unregistered()
                 return
         # Step 1: skip if child or already a member
@@ -786,6 +789,12 @@ class SensorNode(wsn.Node):
                 # yield self.timeout(.5)
                 self.send_heart_beat()
             if pck['type'] == 'JOIN_REQUEST':  # it sends a network request to the root
+                #if self.neighbors_table[self.parent_gui]['role'] == Roles.UNREGISTERED or self.neighbors_table[self.parent_gui]['role'] == Roles.REGISTERED:                
+                #self.become_unregistered()
+                #return
+                if self.parent_gui == pck['gui']: #our clusterhead is unlinked
+                    self.become_unregistered()
+                    return
                 self.received_JR_guis.append(pck['gui'])
                 self.ch_transfer_target = pck['gui']
                 self.send_network_request() #this is getting spammed
