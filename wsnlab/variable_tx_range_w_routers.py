@@ -334,7 +334,7 @@ class SensorNode(wsn.Node):
     def become_unregistered(self):
         if self.role != Roles.UNDISCOVERED:
             self.kill_all_timers()
-            self.log('I became UNREGISTERED')
+            #self.log('I became UNREGISTERED')
         self.scene.nodecolor(self.id, 1, 1, 0)
         self.remove_tx_range()
         self.erase_parent()
@@ -450,8 +450,9 @@ class SensorNode(wsn.Node):
         if min_hop_gui < 99999:
             self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
             selected_addr = self.neighbors_table[min_hop_gui]['source']
-            self.send_join_request(selected_addr)
-        if all(v > self.jr_threshold for v in self.join_req_attempts.values()):
+            if self.neighbors_table[min_hop_gui]['role'] != Roles.UNREGISTERED:
+                self.send_join_request(selected_addr)
+        if all(v > self.jr_threshold for v in self.join_req_attempts.values()): #if we've tried every candidate with no luck, try them again
             for k in self.join_req_attempts:
                 self.join_req_attempts[k] = 0
 
@@ -497,6 +498,8 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
+        self.log(self.neighbors_table)
+        self.log(dest)
         self.send({'dest': dest, 'type': 'JOIN_REQUEST', 'gui': self.id})
 
     ###################
@@ -700,6 +703,7 @@ class SensorNode(wsn.Node):
             if pck['type'] == 'PROBE':  # it waits and sends heart beat message once received probe message
                 # yield self.timeout(.5)
                 self.send_heart_beat()
+                self.log("HEARD PROBE")
                 #self.probe_counts[pck['gui']] = self.probe_counts.get(pck['gui'], 0) + 1
                 self.probe_count += 1
                 if self.probe_count > config.JR_THRESHOLD_TO_EXPAND_TX_RANGE:
