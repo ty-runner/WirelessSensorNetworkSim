@@ -258,6 +258,7 @@ class SensorNode(wsn.Node):
 
     def assign_tx_power(self, power_level=None):
         if power_level is None:
+            self.log(self.parent_gui)
             #this should not be a fully random choice, we need to pick ranges that the node can still reach its parent
             parent = next( #search for parent details, we want distance
                 (d for d in self.candidate_parents_table if d.get('gui') == self.parent_gui),
@@ -265,21 +266,23 @@ class SensorNode(wsn.Node):
             )
             #we choose our power based on distance to parent
             dist_diff = []
-
-            for range_val in config.NODE_TX_RANGES.values():
-                diff = parent['distance'] - range_val
-                dist_diff.append(diff)
-
-            # find the index of the smallest *positive* distance difference
-            negative_diffs = [(i, d) for i, d in enumerate(dist_diff) if d < 0]
-
-            if negative_diffs:
-                dist_diff_idx, _ = max(negative_diffs, key=lambda x: x[1])
+            if parent is None: 
+                self.tx_power = config.NODE_DEFAULT_TX_POWER
             else:
-                # fallback if no positive diffs — pick the smallest absolute diff
-                dist_diff_idx = min(range(len(dist_diff)), key=lambda i: abs(dist_diff[i]))
+                for range_val in config.NODE_TX_RANGES.values():
+                    diff = parent['distance'] - range_val
+                    dist_diff.append(diff)
 
-            self.tx_power = config.TX_POWER_LEVELS[dist_diff_idx]
+                # find the index of the smallest *positive* distance difference
+                negative_diffs = [(i, d) for i, d in enumerate(dist_diff) if d < 0]
+
+                if negative_diffs:
+                    dist_diff_idx, _ = max(negative_diffs, key=lambda x: x[1])
+                else:
+                    # fallback if no positive diffs — pick the smallest absolute diff
+                    dist_diff_idx = min(range(len(dist_diff)), key=lambda i: abs(dist_diff[i]))
+
+                self.tx_power = config.TX_POWER_LEVELS[dist_diff_idx]
 
         else:
             self.tx_power = power_level
