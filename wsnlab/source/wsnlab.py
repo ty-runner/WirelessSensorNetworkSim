@@ -10,7 +10,7 @@ import random
 import simpy
 from simpy.util import start_delayed
 from source import config
-Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER')
+Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER DEAD')
 ###########################################################
 class Addr:
     """Use for a network address which has two parts
@@ -221,12 +221,13 @@ class Node:
     def check_power(self):
         if self.power < config.JOULES * config.LOW_POWER_THRESHOLD and not self.is_sleep:
             self.remove_tx_range()
+            self.kill_all_timers()
             self.sleep()
             self.log('I AM DEAD')
-            self.scene.nodecolor(self.id, 0.5, 0.5, 0.5)  # sets self color to red
-
             self.erase_parent()
-            self.kill_all_timers()
+            
+            self.set_role(Roles.DEAD)
+            self.parent_gui = None
     ############################
     def send(self, pck):
         """Sends given package. If dest address in pck is broadcast address, it sends the package to all neighbors.
@@ -237,34 +238,35 @@ class Node:
 
         """
         self.check_power()
-        for (dist, node) in self.neighbor_distance_list:
-            if dist <= self.tx_range:
-                self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
-                if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
-                    if node.can_receive(pck):
-                        if pck['dest'] != Addr(255,255):
-                            src = pck.get('source')
-                            if src is None:
-                                src = pck['gui']
-                            else:
-                                src = (pck['source'].net_addr, pck['source'].node_addr)
-                            dest = (pck['dest'].net_addr, pck['dest'].node_addr)
-                            pck_id = (src, dest)
-                            
-                            self.sim.packet_log[pck_id] = {
-                                'created_at': self.now,
-                                'source': self.id,
-                                'received_at': []
-                            }
-                        #self.delayed_exec(config.TRANSMISSION_TIME, node.on_receive_check, pck) #emulate transmission time delay
-                        prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
-                        self.delayed_exec(prop_time, node.on_receive_check, pck)
+        if not self.is_sleep:
+            for (dist, node) in self.neighbor_distance_list:
+                if dist <= self.tx_range:
+                    self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
+                    if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
+                        if node.can_receive(pck):
+                            if pck['dest'] != Addr(255,255):
+                                src = pck.get('source')
+                                if src is None:
+                                    src = pck['gui']
+                                else:
+                                    src = (pck['source'].net_addr, pck['source'].node_addr)
+                                dest = (pck['dest'].net_addr, pck['dest'].node_addr)
+                                pck_id = (src, dest)
+                                
+                                self.sim.packet_log[pck_id] = {
+                                    'created_at': self.now,
+                                    'source': self.id,
+                                    'received_at': []
+                                }
+                            #self.delayed_exec(config.TRANSMISSION_TIME, node.on_receive_check, pck) #emulate transmission time delay
+                            prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
+                            self.delayed_exec(prop_time, node.on_receive_check, pck)
+                    else:
+                        if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE":
+                            self.log("PACKET DROPPED")
+                            self.log(pck)
                 else:
-                    if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE":
-                        self.log("PACKET DROPPED")
-                        self.log(pck)
-            else:
-                break
+                    break
 
     ############################
     def set_timer(self, name, time, *args, **kwargs):
