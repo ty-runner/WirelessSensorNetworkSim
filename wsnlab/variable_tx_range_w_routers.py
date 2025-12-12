@@ -326,7 +326,7 @@ class SensorNode(wsn.Node):
                     self.assign_tx_power()
                 else:
                     self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
-                self.draw_tx_range()
+                #self.draw_tx_range()
             elif new_role == Roles.ROOT:
                 self.scene.nodecolor(self.id, 0, 0, 0)
                 self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
@@ -342,8 +342,9 @@ class SensorNode(wsn.Node):
         if self.role != Roles.UNDISCOVERED:
             self.kill_all_timers()
             #self.log('I became UNREGISTERED')
-        self.scene.nodecolor(self.id, 1, 1, 0)
+        #self.scene.nodecolor(self.id, 1, 1, 0)
         self.remove_tx_range()
+        self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
         self.erase_parent()
         self.addr = None
         self.ch_addr = None
