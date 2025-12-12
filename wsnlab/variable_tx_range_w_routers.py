@@ -956,6 +956,7 @@ class SensorNode(wsn.Node):
                         self.send_network_update()
                         self.set_timer('TIMER_NETWORK_UPDATE', config.TABLE_SHARE_INTERVAL)
                         self.set_timer('TIMER_PARENT_TIMEOUT', config.TABLE_SHARE_INTERVAL)
+                        self.node_available_dict = {i: None for i in range(1, config.NUM_OF_CHILDREN+1)}
                     else:
                         self.set_role(Roles.REGISTERED)
                         self.register()
@@ -1021,7 +1022,7 @@ class SensorNode(wsn.Node):
             if self.role != Roles.UNREGISTERED and self.role != Roles.UNDISCOVERED:
                 self.kill_timer('TIMER_JOIN_REQUEST')
                 return
-            if len(self.candidate_parents_table) == 0:
+            if len(self.candidate_parents_table) == 0 and self.role != Roles.UNREGISTERED:
                 self.become_unregistered()
             else:  # otherwise it chose one of them and sends join request
                 self.select_and_join()
