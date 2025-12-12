@@ -363,6 +363,7 @@ class SensorNode(wsn.Node):
         self.join_req_attempts = {}
         self.received_JR_guis = []  # keeps received Join Request global unique ids
         self.send_probe()
+        self.remove_tx_range()
         self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
     ###################
     def become_router(self):
