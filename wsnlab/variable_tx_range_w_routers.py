@@ -339,6 +339,8 @@ class SensorNode(wsn.Node):
             for member in self.members_table:
                 self.send_join_reply(0, member) #0 here is the gui, this isnt great but lets see
     def become_unregistered(self):
+        if self.role == Roles.UNREGISTERED:
+            return
         if self.role != Roles.UNDISCOVERED:
             self.kill_all_timers()
             #self.log('I became UNREGISTERED')

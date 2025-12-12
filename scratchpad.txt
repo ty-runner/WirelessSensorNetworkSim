@@ -1,1 +1,5 @@
 behavior that is a little off is about at the 3rd reorg, nodes cant join clusterheads???
+
+My theory is that the become_unregistered
+
+Left half, after recovery are busted.
