@@ -176,7 +176,7 @@ class SensorNode(wsn.Node):
         self.c_probe = 0  # c means counter and probe is the name of counter
         self.th_probe = 10  # th means threshold and probe is the name of threshold
         self.hop_count = 99999
-        self.jr_threshold = 5
+        self.jr_threshold = config.JOIN_REQUEST_THRESHOLD
         self.neighbors_table = {}  # keeps neighbor information with received HB messages
         self.candidate_parents_table = []
         self.child_networks_table = {}
@@ -364,6 +364,7 @@ class SensorNode(wsn.Node):
         self.probe_count = 0
         self.join_req_attempts = {}
         self.received_JR_guis = []  # keeps received Join Request global unique ids
+        self.send_heart_beat()
         self.send_probe()
         self.remove_tx_range()
         self.set_timer('TIMER_JOIN_REQUEST', config.JOIN_REQUEST_TIME_INTERVAL)
@@ -455,20 +456,22 @@ class SensorNode(wsn.Node):
     def select_and_join(self):
         min_hop = 99999
         min_hop_gui = 99999
+        if self.role != Roles.UNREGISTERED:
+            return
         for gui in self.candidate_parents_table:
             gui = gui['gui'] #we are now passing in the full packet
             attempts = self.join_req_attempts.get(gui, 0)
-            if attempts >= self.jr_threshold:
+            if attempts >= self.jr_threshold or self.neighbors_table[gui]['role'] == Roles.UNREGISTERED:
                 continue
-            if self.neighbors_table[gui]['hop_count'] < min_hop or (self.neighbors_table[gui]['hop_count'] == min_hop and gui < min_hop_gui):
+            if self.neighbors_table[gui]['role'] == Roles.CLUSTER_HEAD or self.neighbors_table[gui]['hop_count'] < min_hop or (self.neighbors_table[gui]['hop_count'] == min_hop and gui < min_hop_gui):
                 min_hop = self.neighbors_table[gui]['hop_count']
                 min_hop_gui = gui
         if min_hop_gui < 99999:
-            self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
             selected_addr = self.neighbors_table[min_hop_gui]['source']
             if self.neighbors_table[min_hop_gui]['role'] != Roles.UNREGISTERED:
                 self.send_join_request(selected_addr)
-        if all(v > self.jr_threshold for v in self.join_req_attempts.values()): #if we've tried every candidate with no luck, try them again
+                self.join_req_attempts[min_hop_gui] = self.join_req_attempts.get(min_hop_gui, 0) + 1
+        if all(v >= self.jr_threshold for v in self.join_req_attempts.values()): #if we've tried every candidate with no luck, try them again, should be v >= threshold to reset, seeing too many clusterheads when doing this
             for k in self.join_req_attempts:
                 self.join_req_attempts[k] = 0
 
@@ -911,8 +914,8 @@ class SensorNode(wsn.Node):
                 self.update_neighbor(pck)
             if pck['type'] == 'CH_NOMINATION':  # it becomes cluster head and send join reply to the candidates
                 if pck['gui'] == self.id:
-                    self.set_role(Roles.CLUSTER_HEAD)
                     self.parent_gui = pck['parent_gui']
+                    self.set_role(Roles.CLUSTER_HEAD)
                     self.draw_parent()
                     check_all_nodes_registered()
                     try:

@@ -578,8 +578,6 @@ class Simulator:
             n.init()
         for n in self.nodes:
             self.env.process(ensure_generator(self.env, n.run))
-            if n.id == 5 or n.id == 6 or n.id == 14 or n.id == 25:
-                print("here")
         self.env.run(until=self.duration)
         for n in self.nodes:
             n.finish()
