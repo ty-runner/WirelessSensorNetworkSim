@@ -213,21 +213,7 @@ class SensorNode(wsn.Node):
     def set_address(self, addr):
         """Set node address and update global mapping."""
         global ADDR_TO_NODE
-        seen = {}
-        duplicates = {}
 
-        for key, value in ADDR_TO_NODE.items():
-            if value in seen:
-                duplicates.setdefault(value, []).append(key)
-            else:
-                seen[value] = key
-
-        if duplicates:
-            print("Duplicates found:")
-            for value, keys in duplicates.items():
-                print(f"{value} -> {keys + [seen[value]]}")
-        else:
-            print("No duplicates found")
         # Remove old address if exists
         if hasattr(self, 'addr') and self.addr is not None:
             old_key = (self.addr.net_addr, self.addr.node_addr)
@@ -533,8 +519,6 @@ class SensorNode(wsn.Node):
         Returns:
 
         """
-        self.log("DEST")
-        self.log(dest)
         self.send({'dest': dest, 'type': 'JOIN_REQUEST', 'gui': self.id})
 
     ###################
