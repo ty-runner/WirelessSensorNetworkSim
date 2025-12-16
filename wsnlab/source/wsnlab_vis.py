@@ -205,8 +205,22 @@ class Node(wsnlab.Node):
            Returns:
 
         """
-        if self.parent_gui is not None:
-            self.scene.dellink(self.parent_gui, self.id, "parent")
+        if hasattr(self, "parent_link_id"):
+            src, dst, tag = self.parent_link_id
+
+            # If haslink() exists in this Scene version, use it
+            if hasattr(self.scene, "haslink"):
+                if not self.scene.haslink(src, dst, tag):
+                    return
+
+            # Attempt deletion safely
+            try:
+                self.scene.dellink(src, dst, tag)
+            except Exception:
+                # Link doesn't exist -> ignore
+                pass
+        #if self.parent_gui is not None:
+        #    self.scene.dellink(self.parent_gui, self.id, "parent")
 
 
 ###########################################################
