@@ -21,38 +21,34 @@ ROLE_COUNTS = Counter()     # live tally per Roles enum
 def _addr_str(a): return "" if a is None else str(a)
 def _role_name(r): return r.name if hasattr(r, "name") else str(r)
 
-
+ALL_REGISTERED_PREV = False
+ALL_REGISTERED_EVENT_ID = 0
 
 """Enumeration of roles"""
 
-def log_all_nodes_registered():
-    """Log every node's status, power, and role to topology.csv and check if all are registered."""
-    filename = "topology.csv"
+def log_all_nodes_registered(sim_time=None):
+    global ALL_REGISTERED_EVENT_ID
 
-    # Create or overwrite the CSV file
+    ALL_REGISTERED_EVENT_ID += 1
+
+    if sim_time is None:
+        sim_time = "unknown_time"
+
+    filename = f"topology_all_registered_{ALL_REGISTERED_EVENT_ID}_t{sim_time}.csv"
+
     with open(filename, mode="w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["Node ID", "Position", "Role", "Power"])
 
-        unregistered_nodes = []
-
         for node in ALL_NODES:
-            role = getattr(node, "role", "UNKNOWN")
-            position = getattr(node, "pos", None)
-            power = getattr(node, "power", None)  # <-- added
+            writer.writerow([
+                node.id,
+                getattr(node, "pos", None),
+                getattr(node, "role", "UNKNOWN"),
+                getattr(node, "power", None),
+            ])
 
-            writer.writerow([node.id, position, role, power])
-
-            if role not in {Roles.REGISTERED, Roles.CLUSTER_HEAD, Roles.ROOT, Roles.ROUTER}:
-                unregistered_nodes.append(node.id)
-
-    # Console output
-    if not unregistered_nodes:
-        print(f"✅ All {len(ALL_NODES)} nodes are registered. Logged to {filename}.")
-        return True
-    else:
-        print(f"⚠️ Unregistered nodes: {unregistered_nodes}. Logged to {filename}.")
-        return False
+    print(f"✅ All nodes registered → snapshot #{ALL_REGISTERED_EVENT_ID} saved to {filename}")
 
 
 def log_final_node_power_levels():
@@ -139,6 +135,16 @@ def check_all_nodes_registered():
         return True
     else:
         return False
+    
+def all_nodes_registered():
+    """
+    Returns True if NO node is UNREGISTERED or UNDISCOVERED.
+    """
+    for node in ALL_NODES:
+        role = getattr(node, "role", None)
+        if not node.is_sleep and role in (Roles.UNREGISTERED, Roles.UNDISCOVERED):
+            return False
+    return True
 ###########################################################
 class SensorNode(wsn.Node):
     """SensorNode class is inherited from Node class in wsnlab.py.
@@ -245,15 +251,15 @@ class SensorNode(wsn.Node):
             ADDR_TO_NODE[key] = self
         
     ###################
+
+
     def register(self):
         # Called when node successfully registers
         self.registered_time = self.now
         diff = self.registered_time - self.wake_up_time
         #print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
-        global NODES_REGISTERED
-        NODES_REGISTERED += 1
-        if NODES_REGISTERED == len(ALL_NODES)-1:
-            log_all_nodes_registered()
+        if all_nodes_registered():
+            log_all_nodes_registered(self.now)
         log_registration_time(self.id, self.wake_up_time, self.registered_time, diff, self.wake_up_time)
 
     def assign_tx_power(self, power_level=None):
@@ -320,7 +326,7 @@ class SensorNode(wsn.Node):
                     self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
                 self.draw_tx_range()
             elif new_role == Roles.ROUTER:
-                self.scene.nodecolor(self.id, 1, 0.75, 0.8)
+                self.scene.nodecolor(self.id, 1, 0, 1)
                 if config.ALLOW_TX_POWER_CHOICE:
                     self.assign_tx_power()
                 else:
