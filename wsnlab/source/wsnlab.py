@@ -241,7 +241,7 @@ class Node:
         if not self.is_sleep:
             for (dist, node) in self.neighbor_distance_list:
                 if dist <= self.tx_range:
-                    self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.01) / 1000 #+10 microjoules for overhead, / 1000 to get joules
+                    self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.001) / 1000 #+10 microjoules for overhead, / 1000 to get joules
                     if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                         if node.can_receive(pck):
                             if pck['dest'] != Addr(255,255):
