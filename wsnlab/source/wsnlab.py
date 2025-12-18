@@ -229,7 +229,7 @@ class Node:
             global death_total
             death_total += 1
             death_time = self.now     # or whatever your simulation time variable is
-            self.log(f"NODE DIED | id={self.id} | role={self.role} | time={death_time}")
+            #self.log(f"NODE DIED | id={self.id} | role={self.role} | time={death_time}")
             #if death_total >= (config.SIM_NODE_COUNT / 2):
             #    self.log("half network ded")
             self.set_role(Roles.DEAD)
@@ -258,6 +258,7 @@ class Node:
                             src = (pck['source'].net_addr, pck['source'].node_addr)
                         if pck['type'] != 'PROBE' and pck['type'] != 'HEART_BEAT' and (self.id == src or self.addr == Addr(src[0], src[1]) or self.ch_addr == Addr(src[0], src[1])):
                             self.sim.sent_packets += 1
+                            self.sim.log_sent(self.now)  # NEW: log sent in current 0.1s bin
                             #print(f"TOTAL SENT COUNT: {self.sim.sent_packets}")
                     if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                         if node.can_receive(pck):
@@ -283,11 +284,13 @@ class Node:
                     else:
                         if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE" and pck['type'] != 'PROBE':
                             self.sim.dropped_packets += 1
+                            self.sim.log_dropped(self.now)  # NEW: log dropped in current 0.1s bin
                             #print(f"DROPPED COUNT: {self.sim.dropped_packets}")
                         #self.log("PACKET DROPPED")
                         #self.log(pck)
                 else:
                     break
+
 
     ############################
     def set_timer(self, name, time, *args, **kwargs):
@@ -408,8 +411,17 @@ class Node:
                         src = (pck['source'].net_addr, pck['source'].node_addr)
                     dest = (pck['dest'].net_addr, pck['dest'].node_addr)
                     pck_id = (src, dest)
+                    # log per-packet receive times
                     self.sim.packet_log[pck_id]['received_at'].append(self.now)
+
+                    # only count "real" data packets as delivered
+                    if pck['type'] not in ('HEART_BEAT', 'TABLE_SHARE', 'PROBE'):
+                        self.sim.log_delivered(self.now)  # NEW: log delivered in current 0.1s bin
+                        pdr = self.sim.sliding_pdr(window_bins=10)
+                        #self.log(f"PDR (last 1s) = {pdr:.3f}")
+
             self.delayed_exec(config.PROCESSING_TIME, self.on_receive, pck) #processing delay
+
 
     ############################
     def on_timer_fired(self, name, *args, **kwargs):
@@ -521,6 +533,30 @@ class Simulator:
                double: Time of simulation.
         """
         return self.env.now
+    def measure_connectivity(self):
+        """Compute fraction of nodes that are connected (based on role)."""
+
+        t = self.now
+
+        connected_count = 0
+        total_count = len(self.nodes)
+
+        for n in self.nodes:
+            if n.role not in (Roles.UNREGISTERED, Roles.UNDISCOVERED, Roles.DEAD):
+                connected_count += 1
+
+        fraction = connected_count / total_count if total_count > 0 else 0.0
+
+        #self.connectivity_log.append((t, fraction))
+
+        print(f"[CONNECTIVITY] t={t:8.2f}  fraction_connected={fraction:.3f}")
+
+    def connectivity_monitor(self, interval=100.0):
+        """Periodically measure connectivity."""
+        while True:
+            yield self.timeout(interval)
+            self.measure_connectivity()
+
     #helpers for pdr
     def _ensure_pdr_bin(self, t):
         """Make sure there is a bin for time t and return its index."""
@@ -635,6 +671,7 @@ class Simulator:
         """
         for n in self.nodes:
             n.init()
+        self.env.process(self.connectivity_monitor(100.0))
         for n in self.nodes:
             self.env.process(ensure_generator(self.env, n.run))
         self.env.run(until=self.duration)

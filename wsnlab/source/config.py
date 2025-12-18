@@ -20,12 +20,12 @@ MTU = 127 + 6 #size of the over the air packet
 VOLTAGE = 3 #volts
 TX_CURRENTS = {"-25 dBm": 8.5, "-15 dBm": 9.9, "-10 dBm": 11, "-5 dBm": 14, "0 dBm": 17.4} #mA
 RX_CURRENT = 18.8 #mA
-JOULES = 1.0
+JOULES = 8.0
 LOW_POWER_THRESHOLD = 0.5 #20% power we shut off
 ## simulation properties
 SIM_NODE_COUNT = 100  # noce count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 75  # cell size to place one node
-SIM_DURATION = 5000  # simulation Duration in seconds
+SIM_DURATION = 2000  # simulation Duration in seconds
 SIM_TIME_SCALE = 0.0000001  #  The real time dureation of 1 second simualtion time
 SIM_TERRAIN_SIZE = (1400, 1400)  #terrain size
 SIM_TITLE = 'Data Collection Tree'  # title of visualization window
@@ -42,16 +42,16 @@ ALLOW_TX_POWER_CHOICE = 0 #1 for smart choice, 0 for default across all
 TRANSMISSION_TIME = 0.00000005 #seconds, 133 * 8 / tx_rate = 4.256 ms round up to 5 ms
 PROCESSING_TIME = 0.000001 #seconds, research for CC2420 was around a mean of 1 ms. HAD TO SCALE THESE VALUES DOWN FOR SAKE OF THE SIMULATION
 ## application properties
-SLEEP_MODE_PROBE_TIME_INTERVAL = 30
-HEART_BEAT_TIME_INTERVAL = 5
+SLEEP_MODE_PROBE_TIME_INTERVAL = 100
+HEART_BEAT_TIME_INTERVAL = 20
 JOIN_REQUEST_THRESHOLD = 2
-JOIN_REQUEST_TIME_INTERVAL = 20
+JOIN_REQUEST_TIME_INTERVAL = 50
 PROBE_THRESHOLD_TO_EXPAND_TX_RANGE = 10 * 2 #was 10
 JR_THRESHOLD_TO_SEND_NET_REQ = JOIN_REQUEST_THRESHOLD - 1
 NETWORK_REQUEST_TIME_INTERVAL = JOIN_REQUEST_TIME_INTERVAL * 2
-DATA_INTERVAL = 10
+DATA_INTERVAL = 100
 MESH_HOP_N = 2
-TABLE_SHARE_INTERVAL = 15
+TABLE_SHARE_INTERVAL = 30
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
 EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;

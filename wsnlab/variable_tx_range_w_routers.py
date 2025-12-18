@@ -397,9 +397,9 @@ class SensorNode(wsn.Node):
         self.parent_gui = None
         self.root_addr = None
         self.set_role(Roles.UNREGISTERED)
-        if ALL_REGISTERED_EVENT_ID > 0: #if the network has converged before..
-            if network_dead(self.now):
-                self.log("NETWORK HAS DIED")
+        #if ALL_REGISTERED_EVENT_ID > 0: #if the network has converged before..
+            #if network_dead(self.now):
+                #self.log("NETWORK HAS DIED")
         self.c_probe = 0
         self.th_probe = 10
         self.hop_count = 99999
