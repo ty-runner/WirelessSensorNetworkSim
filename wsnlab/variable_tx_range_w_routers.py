@@ -20,7 +20,7 @@ ROLE_COUNTS = Counter()     # live tally per Roles enum
 
 def _addr_str(a): return "" if a is None else str(a)
 def _role_name(r): return r.name if hasattr(r, "name") else str(r)
-
+dead_time_accumulator = 0.0
 ALL_REGISTERED_PREV = False
 ALL_REGISTERED_EVENT_ID = 0
 
@@ -49,6 +49,35 @@ def log_all_nodes_registered(sim_time=None):
             ])
 
     print(f"✅ All nodes registered → snapshot #{ALL_REGISTERED_EVENT_ID} saved to {filename}")
+
+def network_dead(sim_dt):
+    """
+    Returns True if fewer than 80 nodes have remained connected
+    for 100 consecutive simulated seconds.
+    
+    sim_dt: simulated time elapsed since last call (seconds)
+    """
+    global dead_time_accumulator
+
+    bad_roles = (Roles.UNREGISTERED, Roles.UNDISCOVERED, Roles.DEAD)
+
+    bad_count = 0
+    for node in ALL_NODES:
+        role = getattr(node, "role", None)
+        if not node.is_sleep and role in bad_roles:
+            bad_count += 1
+
+    total_nodes = config.SIM_NODE_COUNT
+    connected_nodes = total_nodes - bad_count
+
+    if connected_nodes < 80:
+        # network is currently "bad"
+        dead_time_accumulator += sim_dt
+    else:
+        # network recovered → reset timer
+        dead_time_accumulator = 0.0
+
+    return dead_time_accumulator >= 100.0
 
 
 def log_final_node_power_levels():
@@ -87,7 +116,7 @@ def log_all_packets(packet_log, filename="packet_log.csv"):
     """
     with open(filename, mode="w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["packet_id", "source_node", "created_at", "received_at", "delay"])
+        writer.writerow(["packet_id", "type", "source_node", "created_at", "received_at", "delay"])
 
         for pck_id, entry in packet_log.items():
             created_at = entry['created_at']
@@ -260,6 +289,7 @@ class SensorNode(wsn.Node):
         #print(f"Node {self.id} registered at {self.registered_time}, Δt = {diff}")
         if all_nodes_registered():
             log_all_nodes_registered(self.now)
+
         log_registration_time(self.id, self.wake_up_time, self.registered_time, diff, self.wake_up_time)
 
     def assign_tx_power(self, power_level=None):
@@ -359,6 +389,9 @@ class SensorNode(wsn.Node):
         self.parent_gui = None
         self.root_addr = None
         self.set_role(Roles.UNREGISTERED)
+        if ALL_REGISTERED_EVENT_ID > 0: #if the network has converged before..
+            if network_dead(self.now):
+                self.log("NETWORK HAS DIED")
         self.c_probe = 0
         self.th_probe = 10
         self.hop_count = 99999
@@ -679,13 +712,14 @@ class SensorNode(wsn.Node):
         #print(self.neighbors_table)
         #print(len(self.neighbors_table))
         #choose random node in neighbor table
-        #    self.route_and_forward_package({'dest': self.root_addr, 'type': 'SENSOR', 'source': self.addr, 'sensor_value': random.uniform(10,50)})
-        if self.neighbors_table:
-            rand_key = random.choice(list(self.neighbors_table.keys()))
-            #self.send({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
-            #       'gui': self.id, 'sensor_value': random.uniform(0,100)})
-            self.route_and_forward_package({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
-               'gui': self.id, 'sensor_value': random.uniform(0,100)})
+        if self.role != Roles.UNREGISTERED:
+            self.route_and_forward_package({'dest': self.root_addr, 'type': 'SENSOR_DATA', 'source': self.addr, 'gui': self.id, 'sensor_value': random.uniform(10,50)})
+        #if self.neighbors_table:
+        #    rand_key = random.choice(list(self.neighbors_table.keys()))
+        #    #self.send({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
+        #    #       'gui': self.id, 'sensor_value': random.uniform(0,100)})
+        #    self.route_and_forward_package({'dest': self.neighbors_table[rand_key]['addr'], 'type': 'SENSOR_DATA', 'source': self.addr,
+        #       'gui': self.id, 'sensor_value': random.uniform(0,100)})
     ###################
     def send_table_share(self):
         """Sending network update message to parent
@@ -934,6 +968,9 @@ class SensorNode(wsn.Node):
                 #self.log(pck)
                 self.update_neighbor(pck)
             if pck['type'] == 'CH_NOMINATION':  # it becomes cluster head and send join reply to the candidates
+                if pck.get("gui") is None:
+                    self.log(pck)
+                    return
                 if pck['gui'] == self.id:
                     self.parent_gui = pck['parent_gui']
                     self.hop_count = pck['hop_count'] + 1

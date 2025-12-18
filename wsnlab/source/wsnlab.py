@@ -261,10 +261,16 @@ class Node:
                             #self.delayed_exec(config.TRANSMISSION_TIME, node.on_receive_check, pck) #emulate transmission time delay
                             prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
                             self.delayed_exec(prop_time, node.on_receive_check, pck)
+                            if pck['type'] != 'PROBE' and pck['type'] != 'HEART_BEAT':
+                                #print(pck['type'])
+                                self.sim.sent_packets += 1
+                                #print(f"TOTAL SENT COUNT: {self.sim.sent_packets}")
                     else:
-                        if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE":
-                            self.log("PACKET DROPPED")
-                            self.log(pck)
+                        #if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE":
+                        self.sim.dropped_packets += 1
+                        #print(f"DROPPED COUNT: {self.sim.dropped_packets}")
+                        #self.log("PACKET DROPPED")
+                        #self.log(pck)
                 else:
                     break
 
@@ -484,6 +490,8 @@ class Simulator:
         self.timescale = timescale
         self.random = random.Random(seed)
         self.timeout = self.env.timeout
+        self.dropped_packets = 0
+        self.sent_packets = 0
 
     ############################
     @property
