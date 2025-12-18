@@ -11,7 +11,7 @@ NODE_DEFAULT_TX_POWER = "0 dBm"
 TX_POWER_LEVELS = ["-25 dBm", "-15 dBm", "-10 dBm", "-5 dBm", "0 dBm"]
 NODE_TX_RANGES = {"-25 dBm": 5, "-15 dBm": 25, "-10 dBm": 50, "-5 dBm": 75, "0 dBm": 100} #TX range of nodes in meters
 NODE_ARRIVAL_MAX = 1  # max time to wake up
-NODE_LOSS_CHANCE = 0.0 #between 0 and 1
+NODE_LOSS_CHANCE = 0.001 #between 0 and 1
 def get_tx_range(power):
     return NODE_TX_RANGES[power]
 ##Radio properties, CC2420
@@ -20,12 +20,12 @@ MTU = 127 + 6 #size of the over the air packet
 VOLTAGE = 3 #volts
 TX_CURRENTS = {"-25 dBm": 8.5, "-15 dBm": 9.9, "-10 dBm": 11, "-5 dBm": 14, "0 dBm": 17.4} #mA
 RX_CURRENT = 18.8 #mA
-JOULES = 40.0
+JOULES = 20.0
 LOW_POWER_THRESHOLD = 0.2 #20% power we shut off
 ## simulation properties
 SIM_NODE_COUNT = 100  # noce count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 75  # cell size to place one node
-SIM_DURATION = 10000  # simulation Duration in seconds
+SIM_DURATION = 1000  # simulation Duration in seconds
 SIM_TIME_SCALE = 0.0000001  #  The real time dureation of 1 second simualtion time
 SIM_TERRAIN_SIZE = (1400, 1400)  #terrain size
 SIM_TITLE = 'Data Collection Tree'  # title of visualization window
@@ -45,11 +45,11 @@ PROCESSING_TIME = 0.000001 #seconds, research for CC2420 was around a mean of 1 
 SLEEP_MODE_PROBE_TIME_INTERVAL = 30
 HEART_BEAT_TIME_INTERVAL = 5
 JOIN_REQUEST_THRESHOLD = 2
-JOIN_REQUEST_TIME_INTERVAL = 10
+JOIN_REQUEST_TIME_INTERVAL = 20
 PROBE_THRESHOLD_TO_EXPAND_TX_RANGE = 10 * 2 #was 10
 JR_THRESHOLD_TO_SEND_NET_REQ = JOIN_REQUEST_THRESHOLD - 1
 NETWORK_REQUEST_TIME_INTERVAL = JOIN_REQUEST_TIME_INTERVAL * 2
-DATA_INTERVAL = 100
+DATA_INTERVAL = 10
 MESH_HOP_N = 2
 TABLE_SHARE_INTERVAL = 15
 REPAIRING_METHOD = 'FIND_ANOTHER_PARENT' # 'ALL_ORPHAN', 'FIND_ANOTHER_PARENT'
@@ -57,7 +57,12 @@ EXPORT_CH_CSV_INTERVAL = 10  # simulation time units;
 EXPORT_NEIGHBOR_CSV_INTERVAL = 10  # simulation time units;
 
 #PARAMETERS TO KILL NODES
-node_ids = [] #25 is a good one to kill
+N = 40  # how many IDs you want
+all_ids = list(range(0, 101))
+all_ids.remove(17)
+
+#node_ids = random.sample(all_ids, N)
+node_ids = []
 def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_wakeup_delay):
     cycles = {}
 
@@ -74,8 +79,8 @@ def generate_sleep_cycles(node_ids, min_death, max_death, min_wakeup_delay, max_
         }
 
     return cycles
-MIN_DEATH = NODE_ARRIVAL_MAX
-MAX_DEATH = MIN_DEATH * 3
+MIN_DEATH = 300
+MAX_DEATH = MIN_DEATH * 2
 MIN_WAKEUP = MAX_DEATH + 1
 MAX_WAKEUP = MIN_WAKEUP + NODE_ARRIVAL_MAX
 KILL_AND_WAKEUP = generate_sleep_cycles(node_ids, MIN_DEATH, MAX_DEATH, MIN_WAKEUP, MAX_WAKEUP)

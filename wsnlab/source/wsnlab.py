@@ -11,6 +11,7 @@ import simpy
 from simpy.util import start_delayed
 from source import config
 Roles = Enum('Roles', 'UNDISCOVERED UNREGISTERED ROOT REGISTERED CLUSTER_HEAD ROUTER DEAD')
+death_total = 0
 ###########################################################
 class Addr:
     """Use for a network address which has two parts
@@ -225,7 +226,10 @@ class Node:
             self.sleep()
             self.log('I AM DEAD')
             self.erase_parent()
-            
+            global death_total
+            death_total += 1
+            if death_total >= (config.SIM_NODE_COUNT / 2):
+                self.log("half network ded")
             self.set_role(Roles.DEAD)
             self.parent_gui = None
     ############################
@@ -252,12 +256,12 @@ class Node:
                                     src = (pck['source'].net_addr, pck['source'].node_addr)
                                 dest = (pck['dest'].net_addr, pck['dest'].node_addr)
                                 pck_id = (src, dest)
-                                
-                                self.sim.packet_log[pck_id] = {
-                                    'created_at': self.now,
-                                    'source': self.id,
-                                    'received_at': []
-                                }
+                                if self.id == src or self.addr == Addr(src[0], src[1]) or self.ch_addr == Addr(src[0], src[1]):
+                                    self.sim.packet_log[pck_id] = {
+                                        'created_at': self.now,
+                                        'source': self.id,
+                                        'received_at': []
+                                    }
                             #self.delayed_exec(config.TRANSMISSION_TIME, node.on_receive_check, pck) #emulate transmission time delay
                             prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
                             self.delayed_exec(prop_time, node.on_receive_check, pck)
@@ -266,9 +270,9 @@ class Node:
                                 self.sim.sent_packets += 1
                                 #print(f"TOTAL SENT COUNT: {self.sim.sent_packets}")
                     else:
-                        #if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE":
-                        self.sim.dropped_packets += 1
-                        #print(f"DROPPED COUNT: {self.sim.dropped_packets}")
+                        if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE" and pck['type'] != 'PROBE':
+                            self.sim.dropped_packets += 1
+                            print(f"DROPPED COUNT: {self.sim.dropped_packets}")
                         #self.log("PACKET DROPPED")
                         #self.log(pck)
                 else:

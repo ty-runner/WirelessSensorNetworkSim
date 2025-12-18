@@ -9,6 +9,8 @@ from collections import Counter
 from source.address_registry import ADDR_TO_NODE
 from source.wsnlab import Roles
 import csv  # <— add this near your other imports
+total_unregistered = 0
+death_total = 0
 random.seed(config.SEED if hasattr(config, "SEED") else 42)
 # Track where each node is placed
 NODE_POS = {}  # {node_id: (x, y)}
@@ -58,12 +60,13 @@ def network_dead(sim_dt):
     sim_dt: simulated time elapsed since last call (seconds)
     """
     global dead_time_accumulator
-
-    bad_roles = (Roles.UNREGISTERED, Roles.UNDISCOVERED, Roles.DEAD)
+    
+    bad_roles = (Roles.UNREGISTERED, Roles.UNDISCOVERED)
 
     bad_count = 0
     for node in ALL_NODES:
         role = getattr(node, "role", None)
+
         if not node.is_sleep and role in bad_roles:
             bad_count += 1
 
@@ -72,6 +75,7 @@ def network_dead(sim_dt):
 
     if connected_nodes < 80:
         # network is currently "bad"
+        
         dead_time_accumulator += sim_dt
     else:
         # network recovered → reset timer
@@ -381,6 +385,10 @@ class SensorNode(wsn.Node):
             self.kill_all_timers()
             #self.log('I became UNREGISTERED')
         #self.scene.nodecolor(self.id, 1, 1, 0)
+        global total_unregistered
+        if self.now > 300:
+            total_unregistered += 1
+            #print(f"disconnected nodes {total_unregistered}")
         self.remove_tx_range()
         self.assign_tx_power(config.NODE_DEFAULT_TX_POWER)
         self.erase_parent()
@@ -599,6 +607,8 @@ class SensorNode(wsn.Node):
         path_str = "UNKNOWN"  # default
         #self.log(self.neighbors_table)
         # Send up as an else case (tree routing)
+        if self.role == Roles.DEAD:
+            return
         if self.role != Roles.ROOT:
             if self.neighbors_table[self.parent_gui]['role'] == Roles.ROUTER and self.role != Roles.REGISTERED:
                 pck['next_hop'] = self.neighbors_table[self.parent_gui]['addr']
