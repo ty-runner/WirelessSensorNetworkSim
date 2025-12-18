@@ -224,14 +224,17 @@ class Node:
             self.remove_tx_range()
             self.kill_all_timers()
             self.sleep()
-            self.log('I AM DEAD')
+            #self.log('I AM DEAD')
             self.erase_parent()
             global death_total
             death_total += 1
-            if death_total >= (config.SIM_NODE_COUNT / 2):
-                self.log("half network ded")
+            death_time = self.now     # or whatever your simulation time variable is
+            self.log(f"NODE DIED | id={self.id} | role={self.role} | time={death_time}")
+            #if death_total >= (config.SIM_NODE_COUNT / 2):
+            #    self.log("half network ded")
             self.set_role(Roles.DEAD)
             self.parent_gui = None
+
     ############################
     def send(self, pck):
         """Sends given package. If dest address in pck is broadcast address, it sends the package to all neighbors.
@@ -246,6 +249,16 @@ class Node:
             for (dist, node) in self.neighbor_distance_list:
                 if dist <= self.tx_range:
                     self.power -= ((self.tx_current * config.VOLTAGE * 8 * config.MTU / config.DATARATE) + 0.001) / 1000 #+10 microjoules for overhead, / 1000 to get joules
+                    #self.log(pck)
+                    if pck['dest'] != Addr(255,255):
+                        src = pck.get('source')
+                        if src is None:
+                            src = pck['gui']
+                        else:
+                            src = (pck['source'].net_addr, pck['source'].node_addr)
+                        if pck['type'] != 'PROBE' and pck['type'] != 'HEART_BEAT' and (self.id == src or self.addr == Addr(src[0], src[1]) or self.ch_addr == Addr(src[0], src[1])):
+                            self.sim.sent_packets += 1
+                            #print(f"TOTAL SENT COUNT: {self.sim.sent_packets}")
                     if random.random() > config.NODE_LOSS_CHANCE: #simulating loss of the packet
                         if node.can_receive(pck):
                             if pck['dest'] != Addr(255,255):
@@ -262,17 +275,15 @@ class Node:
                                         'source': self.id,
                                         'received_at': []
                                     }
+
                             #self.delayed_exec(config.TRANSMISSION_TIME, node.on_receive_check, pck) #emulate transmission time delay
                             prop_time = dist / 1000000 - 0.00001 if dist / 1000000 - 0.00001 >0 else 0.00001
                             self.delayed_exec(prop_time, node.on_receive_check, pck)
-                            if pck['type'] != 'PROBE' and pck['type'] != 'HEART_BEAT':
-                                #print(pck['type'])
-                                self.sim.sent_packets += 1
-                                #print(f"TOTAL SENT COUNT: {self.sim.sent_packets}")
+
                     else:
                         if pck['type'] != "HEART_BEAT" and pck['type'] != "TABLE_SHARE" and pck['type'] != 'PROBE':
                             self.sim.dropped_packets += 1
-                            print(f"DROPPED COUNT: {self.sim.dropped_packets}")
+                            #print(f"DROPPED COUNT: {self.sim.dropped_packets}")
                         #self.log("PACKET DROPPED")
                         #self.log(pck)
                 else:
@@ -496,6 +507,8 @@ class Simulator:
         self.timeout = self.env.timeout
         self.dropped_packets = 0
         self.sent_packets = 0
+        self.pdr_bin_size = 0.1  # seconds
+        self.pdr_bins = []
 
     ############################
     @property
@@ -508,6 +521,40 @@ class Simulator:
                double: Time of simulation.
         """
         return self.env.now
+    #helpers for pdr
+    def _ensure_pdr_bin(self, t):
+        """Make sure there is a bin for time t and return its index."""
+        idx = int(t / self.pdr_bin_size)
+        while len(self.pdr_bins) <= idx:
+            start = len(self.pdr_bins) * self.pdr_bin_size
+            self.pdr_bins.append({
+                't': start,
+                'sent': 0,
+                'delivered': 0,
+                'dropped': 0
+            })
+        return idx
+
+    def log_sent(self, t):
+        idx = self._ensure_pdr_bin(t)
+        self.pdr_bins[idx]['sent'] += 1
+
+    def log_delivered(self, t):
+        idx = self._ensure_pdr_bin(t)
+        self.pdr_bins[idx]['delivered'] += 1
+
+    def log_dropped(self, t):
+        idx = self._ensure_pdr_bin(t)
+        self.pdr_bins[idx]['dropped'] += 1
+
+    def sliding_pdr(self, window_bins=10):
+        """PDR over the last `window_bins` samples (each is pdr_bin_size seconds)."""
+        if not self.pdr_bins:
+            return 0.0
+        window = self.pdr_bins[-window_bins:]
+        sent = sum(b['sent'] for b in window)
+        delivered = sum(b['delivered'] for b in window)
+        return delivered / sent if sent > 0 else 0.0
 
     ############################
     def delayed_exec(self, delay, func, *args, **kwargs):

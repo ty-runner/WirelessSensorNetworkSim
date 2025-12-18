@@ -11,7 +11,7 @@ NODE_DEFAULT_TX_POWER = "0 dBm"
 TX_POWER_LEVELS = ["-25 dBm", "-15 dBm", "-10 dBm", "-5 dBm", "0 dBm"]
 NODE_TX_RANGES = {"-25 dBm": 5, "-15 dBm": 25, "-10 dBm": 50, "-5 dBm": 75, "0 dBm": 100} #TX range of nodes in meters
 NODE_ARRIVAL_MAX = 1  # max time to wake up
-NODE_LOSS_CHANCE = 0.001 #between 0 and 1
+NODE_LOSS_CHANCE = 0.0 #between 0 and 1
 def get_tx_range(power):
     return NODE_TX_RANGES[power]
 ##Radio properties, CC2420
@@ -20,12 +20,12 @@ MTU = 127 + 6 #size of the over the air packet
 VOLTAGE = 3 #volts
 TX_CURRENTS = {"-25 dBm": 8.5, "-15 dBm": 9.9, "-10 dBm": 11, "-5 dBm": 14, "0 dBm": 17.4} #mA
 RX_CURRENT = 18.8 #mA
-JOULES = 20.0
-LOW_POWER_THRESHOLD = 0.2 #20% power we shut off
+JOULES = 1.0
+LOW_POWER_THRESHOLD = 0.5 #20% power we shut off
 ## simulation properties
 SIM_NODE_COUNT = 100  # noce count in simulation
 SIM_NODE_PLACING_CELL_SIZE = 75  # cell size to place one node
-SIM_DURATION = 1000  # simulation Duration in seconds
+SIM_DURATION = 5000  # simulation Duration in seconds
 SIM_TIME_SCALE = 0.0000001  #  The real time dureation of 1 second simualtion time
 SIM_TERRAIN_SIZE = (1400, 1400)  #terrain size
 SIM_TITLE = 'Data Collection Tree'  # title of visualization window
