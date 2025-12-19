@@ -11,7 +11,7 @@ You need to install the following packages.
 Source Files for Simulation:
 - Baseline: wsnlab/data_collection_tree.py
 - Midterm 2 Implementation: wsnlab/variable_tx_range_w_routers.py
-
+BRANCH RECOVERY: Used for most data gathering and testing. However, network behavior is congruent in both branches.
 The implementation names variable tx range, but this is a configurable toggle.
 
 Configurable Toggles:
